@@ -1,0 +1,23 @@
+group 'ht.eyfout'
+version '1.0-SNAPSHOT'
+
+apply plugin: 'groovy'
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+description = "Exploring Hazelcast IMDB technology"
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile group:'javax.cache', name:'cache-api', version:'1.1.0'
+    compile group:'com.hazelcast', name:'hazelcast', version:'3.11.5'
+    compile group:'com.hazelcast', name:'hazelcast-client', version:'3.11.5'
+
+
+    compile 'org.codehaus.groovy:groovy-all:2.4.17'
+    testCompile 'org.spockframework:spock-core:1.2-groovy-2.4'
+    testRuntime "com.h2database:h2:1.4.197"
+}
