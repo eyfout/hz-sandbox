@@ -26,7 +26,7 @@ class ServerSpec extends Specification {
         }
 
         when: 'a client updates a distributed map'
-        def member = new Member('a', UUID.randomUUID())
+        def member = Member.server('a', UUID.randomUUID())
 
         Configs.Node.client() {
         }.getMap(Configs.Map.MEMBER_ALIAS.ref()).put(member.name(), member)
@@ -64,15 +64,15 @@ class ClientServerSpec extends Specification {
         def clientName = "client: ${UUID.randomUUID()}"
 
         given: 'a client-server deployment'
-        def server = Configs.Node.server({
+        Configs.Node.server({
             it.setInstanceName(serverName)
         })
-        def client = Configs.Node.client({
+        Configs.Node.client({
             it.setInstanceName(clientName)
         })
 
         when: 'client joins with an instance name in cluster'
-        def client2 = Configs.Node.client({
+        Configs.Node.client({
             it.setInstanceName(clientName)
         })
 
@@ -91,21 +91,33 @@ class ClientServerSpec extends Specification {
         "server ${serverName} and client ${clientName}"
         def server = Configs.Node.server({
             it.setInstanceName(serverName)
+            Configs.Cache.MEMBER_ALIAS.config().apply(it)
         })
+        server.getCacheManager()
+                .getCache(Configs.Cache.MEMBER_ALIAS.ref())
+                .put(serverName, Member.client(serverName, server.getLocalEndpoint().getUuid()))
+
 
         def client = Configs.Node.client({
             it.setInstanceName(clientName)
         })
+        client.getCacheManager()
+                .getCache(Configs.Cache.MEMBER_ALIAS.ref())
+                .put(clientName, Member.client(clientName, client.getLocalEndpoint().getUuid()))
 
         when:
         "client ${clientName2} joins"
-        Configs.Node.client({
+        def client2 = Configs.Node.client({
             it.setInstanceName(clientName2)
         })
+        client2.getCacheManager()
+                .getCache(Configs.Cache.MEMBER_ALIAS.ref())
+                .put(clientName2, Member.client(clientName2, client2.getLocalEndpoint().getUuid()))
+
 
         then: ''
         //TODO remote execution to other nodes by name
-        client.userContext == null
+        client
     }
 
 
@@ -119,7 +131,7 @@ class DiscoverySpec extends Specification {
 
     def 'define custom discovery strategy'() {
         given: 'a custom discovery strategy'
-        def strategy = new MockDiscoveryStrategy(Mock(ILogger), [:]);
+        def strategy = new MockDiscoveryStrategy(Mock(ILogger), [:])
 
         when:
         Configs.Node.server {
@@ -159,8 +171,8 @@ class DiscoverySpec extends Specification {
                         getConfigurationProperties() >> [Configs.Network.DATABASE_DISCOVERY_PROPERTY]
                     }
             )
-            discoveryStrategyConfig.addProperty(Configs.Network.DATABASE_DISCOVERY_PROPERTY.key(), UUID.randomUUID().toString());
-            config.addDiscoveryStrategyConfig(discoveryStrategyConfig);
+            discoveryStrategyConfig.addProperty(Configs.Network.DATABASE_DISCOVERY_PROPERTY.key(), UUID.randomUUID().toString())
+            config.addDiscoveryStrategyConfig(discoveryStrategyConfig)
             discoveryStrategyConfig
         }
         ] as Function<DiscoveryConfig, DiscoveryStrategyConfig>
@@ -182,7 +194,7 @@ class QuorumSpec extends Specification {
         })
         when: 'using cache before quorum'
         def cache = server.cacheManager.getCache(Configs.Cache.MEMBER_ALIAS.ref())
-        [new Member('a', UUID.randomUUID()), new Member('b', UUID.randomUUID())].forEach({
+        [Member.server('a', UUID.randomUUID()), Member.server('b', UUID.randomUUID())].forEach({
             cache.put(it.name(), it)
         })
 
@@ -207,7 +219,7 @@ class QuorumSpec extends Specification {
         })
 
         and: 'operations are taken on cache'
-        def members = [new Member('a', UUID.randomUUID()), new Member('b', UUID.randomUUID())]
+        def members = [Member.server('a', UUID.randomUUID()), Member.server('b', UUID.randomUUID())]
         def cache = server.cacheManager.getCache(Configs.Cache.MEMBER_ALIAS.ref())
         members.forEach({
             cache.put(it.name(), it)
@@ -233,7 +245,7 @@ class QuorumSpec extends Specification {
         })
 
         and: 'operations are taken on cache'
-        def members = [new Member('a', UUID.randomUUID()), new Member('b', UUID.randomUUID())]
+        def members = [Member.server('a', UUID.randomUUID()), Member.server('b', UUID.randomUUID())]
         def cache = server.cacheManager.getCache(Configs.Cache.MEMBER_ALIAS.ref())
         members.forEach({
             cache.put(it.name(), it)
