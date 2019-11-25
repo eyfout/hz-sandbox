@@ -6,6 +6,7 @@ import com.hazelcast.config.CacheSimpleConfig;
 import com.hazelcast.config.Config;
 import com.hazelcast.config.DiscoveryConfig;
 import com.hazelcast.config.DiscoveryStrategyConfig;
+import com.hazelcast.config.MapConfig;
 import com.hazelcast.config.QuorumConfig;
 import com.hazelcast.config.properties.PropertyDefinition;
 import com.hazelcast.config.properties.PropertyTypeConverter;
@@ -23,6 +24,21 @@ import java.util.function.Supplier;
 public final class Configs {
 
   private Configs() {}
+
+  public static final class Map {
+
+    public static final Configuration<String, Function<Config, MapConfig>> MEMBER_ALIAS =
+        new Configuration<>(
+            "eyfout/member/alias/map",
+            it -> {
+              MapConfig config = new MapConfig().setName("eyfout/member/alias/map");
+
+              it.addMapConfig(config);
+              return config;
+            });
+
+    private Map() {}
+  }
 
   public static final class Network {
 

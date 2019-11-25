@@ -6,6 +6,7 @@ import com.hazelcast.spi.discovery.DiscoveryNode
 
 class MockDiscoveryStrategy extends AbstractDiscoveryStrategy {
     int invocations = 0
+
     MockDiscoveryStrategy(ILogger logger, Map<String, Comparable> properties) {
         super(logger, properties)
     }
