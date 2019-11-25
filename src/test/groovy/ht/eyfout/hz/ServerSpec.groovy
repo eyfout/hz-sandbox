@@ -2,6 +2,7 @@ package ht.eyfout.hz
 
 import com.hazelcast.config.DiscoveryConfig
 import com.hazelcast.config.DiscoveryStrategyConfig
+import com.hazelcast.instance.HazelcastInstanceFactory
 import com.hazelcast.logging.ILogger
 import com.hazelcast.quorum.QuorumException
 import com.hazelcast.spi.discovery.DiscoveryStrategy
@@ -12,6 +13,32 @@ import spock.lang.Specification
 import java.util.function.Function
 
 class ServerSpec extends Specification {
+    def cleanup(){
+        HazelcastInstanceFactory.shutdownAll()
+    }
+
+    def 'reading from a distributed map'() {
+        given: 'a server'
+        def server = Configs.Node.server {
+            Configs.Map.MEMBER_ALIAS.config().apply it
+        }
+
+        when: 'a client updates a distributed map'
+        def member = new Member('a', UUID.randomUUID())
+
+        Configs.Node.client() {
+        }.getMap(Configs.Map.MEMBER_ALIAS.ref()).put(member.name(), member)
+
+        then: 'server map has entries'
+        server.getMap(Configs.Map.MEMBER_ALIAS.ref()).containsKey(member.name())
+    }
+}
+
+class DiscoverySpec extends Specification {
+    def cleanup(){
+        HazelcastInstanceFactory.shutdownAll()
+    }
+
 
     def 'define custom discovery strategy'() {
         given: 'a custom discovery strategy'
@@ -36,30 +63,15 @@ class ServerSpec extends Specification {
 
         when: 'a second member starts with the same discovery strategy'
         def server = Configs.Node.server {
+            Configs.Node.QUORUM.apply(it, Configs.Node.TWO_MEMBER_QUORUM)
             Configs.Network.SERVER_CUSTOM_DISCOVERY.apply(it, Configs.Network.DATABASE_DISOVERY_STRATEGY)
             it
         }
 
-        then:
+        then: ''
         server.getCluster().getMembers().size() == 2
+        server.quorumService.getQuorum(Configs.Node.TWO_MEMBER_QUORUM.get().name).isPresent()
     }
-
-    def 'reading from a distributed map'() {
-        given: 'a server'
-        def server = Configs.Node.server {
-            Configs.Map.MEMBER_ALIAS.config().apply it
-        }
-
-        when: 'a client updates a distributed map'
-        def member = new Member('a', UUID.randomUUID())
-
-        Configs.Node.client() {
-        }.getMap(Configs.Map.MEMBER_ALIAS.ref()).put(member.name(), member)
-
-        then: 'server map has entries'
-        server.getMap(Configs.Map.MEMBER_ALIAS.ref()).containsKey(member.name())
-    }
-
 
     def discoverUsing(DiscoveryStrategy strategy) {
         return [apply: { DiscoveryConfig config ->
@@ -76,11 +88,15 @@ class ServerSpec extends Specification {
         }
         ] as Function<DiscoveryConfig, DiscoveryStrategyConfig>
     }
+
 }
 
-class QuorumSpec extends ServerSpec {
+class QuorumSpec extends Specification {
+    def cleanup(){
+        HazelcastInstanceFactory.shutdownAll()
+    }
 
-    def 'below required quorum'() {
+    def 'quorum requirements not met'() {
         given: 'a cache with a 3 member quorum'
         def server = Configs.Node.server({
             Configs.Node.QUORUM.apply(it, Configs.Node.THREE_MEMBER_QUORUM)
@@ -122,6 +138,8 @@ class QuorumSpec extends ServerSpec {
 
         then: 'cache contains all values'
         members.forEach({ cache.contains(it.name()) })
+        and: 'Quorum is present'
+        server.quorumService.getQuorum(Configs.Node.TWO_MEMBER_QUORUM.get().name).present
     }
 
     def 'quorum does not include client nodes'() {
