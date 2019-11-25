@@ -2,18 +2,20 @@ package ht.eyfout.hz
 
 import com.hazelcast.config.DiscoveryConfig
 import com.hazelcast.config.DiscoveryStrategyConfig
+import com.hazelcast.core.DuplicateInstanceNameException
 import com.hazelcast.instance.HazelcastInstanceFactory
 import com.hazelcast.logging.ILogger
 import com.hazelcast.quorum.QuorumException
 import com.hazelcast.spi.discovery.DiscoveryStrategy
 import com.hazelcast.spi.discovery.DiscoveryStrategyFactory
 import ht.eyfout.hz.configuration.Configs
+import spock.lang.PendingFeature
 import spock.lang.Specification
 
 import java.util.function.Function
 
 class ServerSpec extends Specification {
-    def cleanup(){
+    def cleanup() {
         HazelcastInstanceFactory.shutdownAll()
     }
 
@@ -34,8 +36,83 @@ class ServerSpec extends Specification {
     }
 }
 
+class ClientServerSpec extends Specification {
+    def cleanup() {
+        HazelcastInstanceFactory.shutdownAll()
+    }
+
+    def 'specify instance names for endpoints'() {
+        def serverName = "server: ${UUID.randomUUID()}"
+        def clientName = "client: ${UUID.randomUUID()}"
+
+        def server = Configs.Node.server({
+            it.setInstanceName(serverName)
+        })
+        def client = Configs.Node.client({
+            it.setInstanceName(clientName)
+        })
+
+        expect:
+        "client (${clientName}) and server ${serverName} are named"
+        server.getName() == serverName
+        client.getName() == clientName
+    }
+
+
+    def 'client with identical instance names are NOT permitted'() {
+        def serverName = "server: ${UUID.randomUUID()}"
+        def clientName = "client: ${UUID.randomUUID()}"
+
+        given: 'a client-server deployment'
+        def server = Configs.Node.server({
+            it.setInstanceName(serverName)
+        })
+        def client = Configs.Node.client({
+            it.setInstanceName(clientName)
+        })
+
+        when: 'client joins with an instance name in cluster'
+        def client2 = Configs.Node.client({
+            it.setInstanceName(clientName)
+        })
+
+        then: 'Duplicate instance exception'
+        thrown DuplicateInstanceNameException
+    }
+
+
+    @PendingFeature
+    def 'execute job on remote node by name'() {
+        def serverName = "server: ${UUID.randomUUID()}"
+        def clientName = "client: ${UUID.randomUUID()}"
+        def clientName2 = "client: ${UUID.randomUUID()}"
+
+        given:
+        "server ${serverName} and client ${clientName}"
+        def server = Configs.Node.server({
+            it.setInstanceName(serverName)
+        })
+
+        def client = Configs.Node.client({
+            it.setInstanceName(clientName)
+        })
+
+        when:
+        "client ${clientName2} joins"
+        Configs.Node.client({
+            it.setInstanceName(clientName2)
+        })
+
+        then: ''
+        //TODO remote execution to other nodes by name
+        client.userContext == null
+    }
+
+
+}
+
 class DiscoverySpec extends Specification {
-    def cleanup(){
+    def cleanup() {
         HazelcastInstanceFactory.shutdownAll()
     }
 
@@ -92,7 +169,7 @@ class DiscoverySpec extends Specification {
 }
 
 class QuorumSpec extends Specification {
-    def cleanup(){
+    def cleanup() {
         HazelcastInstanceFactory.shutdownAll()
     }
 
