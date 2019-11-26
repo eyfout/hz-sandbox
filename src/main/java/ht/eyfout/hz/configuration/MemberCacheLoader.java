@@ -21,8 +21,10 @@ import java.util.stream.Collectors;
 public class MemberCacheLoader implements CacheLoader<String, Member>, HazelcastInstanceAware {
 
     private HazelcastInstance hzInstance;
+    private final IMap<SocketAddress, String> map;
 
-    private MemberCacheLoader() {
+    public MemberCacheLoader(IMap<SocketAddress, String> map) {
+        this.map = map;
     }
 
     @Override
@@ -40,7 +42,6 @@ public class MemberCacheLoader implements CacheLoader<String, Member>, Hazelcast
 
     private Map<String, Member> clients() {
         //FIXME
-        final IMap<SocketAddress, String> map = hzInstance.getMap(Configs.Map.MEMBER_ADDRESS.ref());
         Collection<Client> connectedClients = hzInstance.getClientService().getConnectedClients();
         if (connectedClients.isEmpty()) {
             return Collections.emptyMap();
@@ -69,11 +70,18 @@ public class MemberCacheLoader implements CacheLoader<String, Member>, Hazelcast
         this.hzInstance = hazelcastInstance;
     }
 
-    public static final class Provider implements Factory<CacheLoader<String, Member>> {
+    public static final class Provider implements Factory<CacheLoader<String, Member>>, HazelcastInstanceAware {
+        HazelcastInstance hzInstance;
 
         @Override
         public CacheLoader<String, Member> create() {
-            return new MemberCacheLoader();
+            return new MemberCacheLoader(hzInstance.getMap(Configs.Map.MEMBER_ADDRESS.ref()));
+        }
+
+        @Override
+        public void setHazelcastInstance(HazelcastInstance hazelcastInstance) {
+            hzInstance = hazelcastInstance;
+
         }
     }
 }

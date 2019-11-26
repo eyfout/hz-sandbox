@@ -3,6 +3,7 @@ package ht.eyfout.hz.configuration;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
 import com.hazelcast.client.config.ClientReliableTopicConfig;
+import com.hazelcast.client.config.ProxyFactoryConfig;
 import com.hazelcast.config.CacheSimpleConfig;
 import com.hazelcast.config.Config;
 import com.hazelcast.config.DiscoveryConfig;
@@ -10,6 +11,7 @@ import com.hazelcast.config.DiscoveryStrategyConfig;
 import com.hazelcast.config.MapConfig;
 import com.hazelcast.config.QuorumConfig;
 import com.hazelcast.config.ReliableTopicConfig;
+import com.hazelcast.config.ServiceConfig;
 import com.hazelcast.config.properties.PropertyDefinition;
 import com.hazelcast.config.properties.PropertyTypeConverter;
 import com.hazelcast.config.properties.SimplePropertyDefinition;
@@ -31,15 +33,38 @@ public final class Configs {
     private Configs() {
     }
 
-    private static String name(String element){
+    static String name(String element) {
         return "eyfout/" + element;
+    }
+
+    public static final class Service {
+        public static final String MEMBER_ALIAS_SERVICE = MemberService.NAME;
+        public static final Configuration<String, Function<Config, ServiceConfig>, Function<ClientConfig, ProxyFactoryConfig>> MEMBER_ALIAS = new Configuration<>(
+                MEMBER_ALIAS_SERVICE,
+                it -> {
+                    ServiceConfig config = new ServiceConfig()
+                            .setEnabled(true)
+                            .setImplementation(new MemberService())
+                            .setName(MEMBER_ALIAS_SERVICE)
+                            .addProperty(MemberService.Proxy.PROPERTY, MemberService.Proxy.SOCKET.name());
+
+                    it.getServicesConfig().addServiceConfig(config);
+                    return config;
+                },
+                it->{
+                    ProxyFactoryConfig config = new ProxyFactoryConfig();
+                    it.addProxyFactoryConfig(config);
+                    return config;
+                }
+        );
+
+        private Service() {
+        }
     }
 
     public static final class Topic {
 
-        private static final String MEMBER_INFO_REQUEST_TOPIC = name("member/info/request/topic");
-        private static final String MEMBER_INFO_RESPONSE_TOPIC = name( "member/info/response/topic");
-
+        static final String MEMBER_INFO_REQUEST_TOPIC = name("member/info/request/topic");
         public static final Configuration<
                 String,
                 Function<Config, ReliableTopicConfig>,
@@ -50,6 +75,8 @@ public final class Configs {
                         it -> createTopic(it, MEMBER_INFO_REQUEST_TOPIC),
                         it -> createTopic(it, MEMBER_INFO_REQUEST_TOPIC));
 
+
+        static final String MEMBER_INFO_RESPONSE_TOPIC = name("member/info/response/topic");
         public static final Configuration<
                 String,
                 Function<Config, ReliableTopicConfig>,
@@ -78,9 +105,7 @@ public final class Configs {
     }
 
     public static final class Map {
-        private static final String MEMBER_ALIAS_MAP = name("/member/alias/map");
-        private static final String MEMBER_ADDRESS_MAP = name("/member/address/map");
-
+        static final String MEMBER_ALIAS_MAP = name("/member/alias/map");
         public static final Configuration<String, Function<Config, MapConfig>, ?> MEMBER_ALIAS =
                 new Configuration<>(
                         MEMBER_ALIAS_MAP,
@@ -89,10 +114,10 @@ public final class Configs {
                             it.addMapConfig(config);
                             return config;
                         });
-
-        public static final Configuration<String, Function<Config, MapConfig>,?> MEMBER_ADDRESS = new Configuration<>(
+        public static final String MEMBER_ADDRESS_MAP = name("/member/address/map");
+        public static final Configuration<String, Function<Config, MapConfig>, ?> MEMBER_ADDRESS = new Configuration<>(
                 MEMBER_ADDRESS_MAP,
-                it->{
+                it -> {
                     MapConfig config = new MapConfig().setName(MEMBER_ADDRESS_MAP);
                     it.addMapConfig(config);
                     return config;
@@ -162,11 +187,10 @@ public final class Configs {
                 };
         public static final String MEMBER_ALIAS_ATTRIBUTE = "alias";
         public static final Duration HEARTBEAT = new Duration(TimeUnit.MILLISECONDS, 2L);
+        private static String DEFAULT_GROUP = name("cluster/group");
 
         private Node() {
         }
-
-        private static String DEFAULT_GROUP = name("cluster/group");
 
         public static final HazelcastInstance client(Consumer<ClientConfig> configurations) {
             ClientConfig config = new ClientConfig();
@@ -184,9 +208,9 @@ public final class Configs {
     }
 
     public static final class Cache {
-        private static final String MEMBER_ALIAS_CACHE = name("member/alias/cache");
-        private static final String AUTO_POPULATE_MEMBER_ALIAS_CACHE = name("auto-populate/member/alias/cache");
-
+        public static final Duration TWO_MILIS = new Duration(TimeUnit.MILLISECONDS, 2L);
+        public static final Duration AUTO_POPULATE_EXPIRY = TWO_MILIS;
+        static final String MEMBER_ALIAS_CACHE = name("member/alias/cache");
         public static final Configuration<String, Function<Config, CacheSimpleConfig>, ?> MEMBER_ALIAS =
                 new Configuration<>(
                         MEMBER_ALIAS_CACHE,
@@ -200,9 +224,7 @@ public final class Configs {
                             return config;
                         });
 
-        public static final Duration TWO_MILIS = new Duration(TimeUnit.MILLISECONDS, 2L);
-        public static final Duration AUTO_POPULATE_EXPIRY = TWO_MILIS;
-
+        static final String AUTO_POPULATE_MEMBER_ALIAS_CACHE = name("auto-populate/member/alias/cache");
         public static final Configuration<String, Function<Config, CacheSimpleConfig>, ?>
                 AUTO_POPULATE_MEMBER_ALIAS =
                 new Configuration<>(

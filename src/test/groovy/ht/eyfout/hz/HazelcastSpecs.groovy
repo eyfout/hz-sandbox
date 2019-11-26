@@ -12,6 +12,7 @@ import com.hazelcast.quorum.QuorumException
 import com.hazelcast.spi.discovery.DiscoveryStrategy
 import com.hazelcast.spi.discovery.DiscoveryStrategyFactory
 import ht.eyfout.hz.configuration.Configs
+import ht.eyfout.hz.configuration.MemberService
 import spock.lang.PendingFeature
 import spock.lang.Specification
 
@@ -265,5 +266,48 @@ class QuorumSpecification extends Specification {
 
         then: 'QuorumException'
         thrown QuorumException
+    }
+}
+
+class ServiceSpecification extends Specification {
+    def cleanup() {
+        HazelcastClient.shutdownAll()
+        HazelcastInstanceFactory.shutdownAll()
+    }
+
+    def 'Deploy membership service'(){
+        String serverName = "server: ${UUID.randomUUID()}"
+        def server = Configs.Node.server({
+            Configs.Service.MEMBER_ALIAS.config().apply(it)
+            it.setInstanceName(serverName)
+            it.getMemberAttributeConfig().setStringAttribute(Configs.Node.MEMBER_ALIAS_ATTRIBUTE, serverName)
+        })
+        MemberService.Membership membership = server.getDistributedObject(Configs.Service.MEMBER_ALIAS_SERVICE, "")
+
+
+        expect:
+        membership.members().contains(Member.server(serverName, server.localEndpoint.uuid))
+    }
+
+    @PendingFeature
+    def 'access deployed service from client'(){
+        String serverName = "server: ${UUID.randomUUID()}"
+        def server = Configs.Node.server({
+            Configs.Service.MEMBER_ALIAS.config().apply(it)
+            Configs.Map.MEMBER_ADDRESS.config().apply(it)
+            it.setInstanceName(serverName)
+            it.getMemberAttributeConfig().setStringAttribute(Configs.Node.MEMBER_ALIAS_ATTRIBUTE, serverName)
+        })
+
+        String clientName = "client: ${UUID.randomUUID()}"
+        def client = Configs.Node.client({})
+        client.getMap(Configs.Map.MEMBER_ADDRESS_MAP).put(client.getLocalEndpoint().socketAddress, clientName)
+
+        MemberService.Membership membership = client.getDistributedObject(Configs.Service.MEMBER_ALIAS_SERVICE, "")
+
+        expect:
+        membership.members().contains(Member.server(serverName, server.localEndpoint.uuid))
+        membership.clients().contains(Member.client(clientName, client.localEndpoint.uuid))
+
     }
 }
