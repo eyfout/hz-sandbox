@@ -34,6 +34,18 @@ class ServerSpec extends Specification {
         then: 'server map has entries'
         server.getMap(Configs.Map.MEMBER_ALIAS.ref()).containsKey(member.name())
     }
+
+    def 'auto-populate cache using cache loader'() {
+        String serverName = "server: ${UUID.randomUUID()}"
+        def server = Configs.Node.server {
+            Configs.Cache.AUTO_POPULATED_MEMBER.config().apply(it)
+            it.getMemberAttributeConfig().setStringAttribute(Configs.Cache.AUTO_POPULATE_ATRRIBUTE_KEY, serverName)
+            it.setInstanceName(serverName)
+        }
+        expect:
+        server.getCacheManager().getCache(Configs.Cache.AUTO_POPULATED_MEMBER.ref())
+                .get(serverName) == Member.server(serverName, server.localEndpoint.uuid)
+    }
 }
 
 class ClientServerSpec extends Specification {
@@ -113,6 +125,7 @@ class ClientServerSpec extends Specification {
         client2.getCacheManager()
                 .getCache(Configs.Cache.MEMBER_ALIAS.ref())
                 .put(clientName2, Member.client(clientName2, client2.getLocalEndpoint().getUuid()))
+
 
 
         then: ''

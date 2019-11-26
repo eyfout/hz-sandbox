@@ -129,6 +129,22 @@ public final class Configs {
               return config;
             });
 
+    public static final String AUTO_POPULATE_ATRRIBUTE_KEY = "alias";
+
+    public static final Configuration<String, Function<Config, CacheSimpleConfig>> AUTO_POPULATED_MEMBER = new Configuration<>(
+        "eyfout/auto-populate/member/alias/cache",
+        it->{
+          CacheSimpleConfig config = new CacheSimpleConfig()
+              .setName("eyfout/auto-populate/member/alias/cache")
+              .setKeyType(String.class.getTypeName())
+              .setValueType(Member.class.getTypeName())
+              .setReadThrough(true)
+              .setCacheLoaderFactory(MemberCacheLoader.Provider.class.getTypeName());
+          it.addCacheConfig(config);
+          return  config;
+        }
+    );
+
     private Cache() {}
   }
 }
