@@ -12,6 +12,7 @@ import com.hazelcast.quorum.QuorumException
 import com.hazelcast.spi.discovery.DiscoveryStrategy
 import com.hazelcast.spi.discovery.DiscoveryStrategyFactory
 import ht.eyfout.hz.configuration.Configs
+import spock.lang.PendingFeature
 import spock.lang.Specification
 
 import java.util.function.Function
@@ -24,7 +25,7 @@ class ServerSpecification extends Specification {
     def 'reading from a distributed map'() {
         given: 'a server'
         def server = Configs.Node.server {
-            Configs.Map.MEMBER_ALIAS.serverConfig().apply it
+            Configs.Map.MEMBER_ALIAS.config().apply it
         }
 
         when: 'a client updates a distributed map'
@@ -40,13 +41,14 @@ class ServerSpecification extends Specification {
     def 'auto-populate cache using cache loader'() {
         String serverName = "server: ${UUID.randomUUID()}"
         def server = Configs.Node.server {
-            Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.serverConfig().apply(it)
+            Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.config().apply(it)
             it.getMemberAttributeConfig().setStringAttribute(Configs.Node.MEMBER_ALIAS_ATTRIBUTE, serverName)
             it.setInstanceName(serverName)
         }
         def member = Member.server(serverName, server.localEndpoint.uuid)
 
-        expect:"cache contains ${member}"
+        expect:
+        "cache contains ${member}"
         server.getCacheManager().getCache(Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.ref())
                 .get(serverName) == member
     }
@@ -97,29 +99,33 @@ class ClientServerSpecification extends Specification {
         thrown DuplicateInstanceNameException
     }
 
-    def 'auto-populate'(){
+    @PendingFeature
+    def 'auto-populate'() {
         String serverName = "server: ${UUID.randomUUID()}"
         String clientName = "client: ${UUID.randomUUID()}"
 
-        given:"$serverName"
+        given:
+        "$serverName"
         def server = Configs.Node.server {
-            Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.serverConfig().apply(it)
-            Configs.Topic.MEMBER_INFO_REQUEST.serverConfig().apply(it)
-            Configs.Topic.MEMBER_INFO_RESPONSE.serverConfig().apply(it)
+            Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.config().apply(it)
+            Configs.Topic.MEMBER_INFO_REQUEST.config().apply(it)
+            Configs.Topic.MEMBER_INFO_RESPONSE.config().apply(it)
             it.getMemberAttributeConfig().setStringAttribute(Configs.Node.MEMBER_ALIAS_ATTRIBUTE, serverName)
             it.setInstanceName(serverName)
         }
 
         Member serverMember = Member.server(serverName, server.localEndpoint.uuid)
 
-        when: "$clientName joins"
+        when:
+        "$clientName joins"
         def client = Configs.Node.client({
-            Configs.Topic.MEMBER_INFO_REQUEST.clientConfig().apply(it)
-            Configs.Topic.MEMBER_INFO_RESPONSE.clientConfig().apply(it)
+            Configs.Topic.MEMBER_INFO_REQUEST.config2().ifPresent({ c->c.apply(it)})
+            Configs.Topic.MEMBER_INFO_RESPONSE.config2().ifPresent({ c->c.apply(it)})
             it.instanceName = clientName
         })
 
-        and: "$clientName registers for topic (${Configs.Topic.MEMBER_INFO_REQUEST.ref()})"
+        and:
+        "$clientName registers for topic (${Configs.Topic.MEMBER_INFO_REQUEST.ref()})"
         def clientMember = Member.client(clientName, client.localEndpoint.uuid)
         client.getReliableTopic(Configs.Topic.MEMBER_INFO_REQUEST.ref()).addMessageListener(new MessageListener<Member>() {
             @Override
@@ -129,11 +135,13 @@ class ClientServerSpecification extends Specification {
         })
 
 
-        then:"cache contains ${serverMember}"
+        then:
+        "cache contains ${serverMember}"
         client.getCacheManager().getCache(Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.ref())
                 .get(serverName) == serverMember
 
-        and: "$clientMember"
+        and:
+        "$clientMember"
         client.getCacheManager().getCache(Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.ref())
                 .get(clientName) == clientMember
     }
@@ -206,7 +214,7 @@ class QuorumSpecification extends Specification {
         given: 'a cache with a 3 member quorum'
         def server = Configs.Node.server({
             Configs.Node.QUORUM.apply(it, Configs.Node.THREE_MEMBER_QUORUM)
-            Configs.Cache.MEMBER_ALIAS.serverConfig().apply(it).setQuorumName(Configs.Node.THREE_MEMBER_QUORUM.get().name)
+            Configs.Cache.MEMBER_ALIAS.config().apply(it).setQuorumName(Configs.Node.THREE_MEMBER_QUORUM.get().name)
             it
         })
         when: 'using cache before quorum'
@@ -224,14 +232,14 @@ class QuorumSpecification extends Specification {
         given: 'cache with 2 member quorum'
         Configs.Node.server({
             Configs.Node.QUORUM.apply(it, Configs.Node.TWO_MEMBER_QUORUM)
-            Configs.Cache.MEMBER_ALIAS.serverConfig().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
+            Configs.Cache.MEMBER_ALIAS.config().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
             it
         })
 
         when: 'a second member joins'
         def server = Configs.Node.server({
             Configs.Node.QUORUM.apply(it, Configs.Node.TWO_MEMBER_QUORUM)
-            Configs.Cache.MEMBER_ALIAS.serverConfig().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
+            Configs.Cache.MEMBER_ALIAS.config().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
             it
         })
 
@@ -252,7 +260,7 @@ class QuorumSpecification extends Specification {
         given: 'cache with 2 member quorum'
         def server = Configs.Node.server({
             Configs.Node.QUORUM.apply(it, Configs.Node.TWO_MEMBER_QUORUM)
-            Configs.Cache.MEMBER_ALIAS.serverConfig().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
+            Configs.Cache.MEMBER_ALIAS.config().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
             it
         })
 

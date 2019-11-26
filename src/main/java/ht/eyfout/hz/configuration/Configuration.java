@@ -1,30 +1,42 @@
 package ht.eyfout.hz.configuration;
 
-public final class Configuration<Ref, Config, Config2> {
-  private final Ref ref;
-  private final Config config;
-  private final Config2 clientConfig;
+import java.util.Optional;
 
-  Configuration(Ref ref, Config config, Config2 config2) {
-    this.ref = ref;
-    this.config = config;
-    this.clientConfig = config2;
+public final class Configuration<Ref, Config1, Config2> {
+    private final Ref ref;
+    private final Config1 config;
+    private final Config2 config2;
 
-  }
+    Configuration(Ref ref, Config1 config, Config2 config2) {
+        this.ref = ref;
+        this.config = config;
+        this.config2 = config2;
+    }
 
-  Configuration(Ref ref, Config config) {
-    this(ref, config, null);
-  }
+    Configuration(Ref ref, Config1 config) {
+        this(ref, config, null);
+    }
 
-  public Ref ref() {
-    return ref;
-  }
+    /**
+     * Reference for the configuration(s)
+     */
+    public Ref ref() {
+        return ref;
+    }
 
-  public Config serverConfig() {
-    return config;
-  }
+    /**
+     * Primary configuration
+     * @return
+     */
+    public Config1 config() {
+        return config;
+    }
 
-  public Config2 clientConfig(){
-    return clientConfig;
-  }
+    /**
+     * Secondary configuration
+     * @return
+     */
+    public Optional<Config2> config2() {
+        return Optional.ofNullable(config2);
+    }
 }
