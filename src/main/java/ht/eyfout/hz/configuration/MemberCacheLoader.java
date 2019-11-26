@@ -13,19 +13,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.cache.configuration.Factory;
 import javax.cache.expiry.Duration;
 import javax.cache.integration.CacheLoader;
 import javax.cache.integration.CacheLoaderException;
 
-public class MemberCacheLoader
-    implements CacheLoader<String, Member>,  HazelcastInstanceAware {
+public class MemberCacheLoader implements CacheLoader<String, Member>, HazelcastInstanceAware {
 
   private HazelcastInstance hzInstance;
   private MemberInfoResponseListener listener;
-
 
   private MemberCacheLoader() {}
 
@@ -42,6 +39,14 @@ public class MemberCacheLoader
   }
 
   private Map<String, Member> clients() {
+    return Collections.emptyMap();
+    /*FIXME: Cannot perform remote operation while loading Cache
+    if (null == listener) {
+      listener = new MemberInfoResponseListener();
+      hzInstance
+          .<Member>getReliableTopic(Topic.MEMBER_INFO_RESPONSE.ref())
+          .addMessageListener(listener);
+    }
 
     listener.waitFor( hzInstance.getClientService().getConnectedClients(), Node.HEARTBEAT );
 
@@ -55,7 +60,7 @@ public class MemberCacheLoader
                     .getStringAttribute(Node.MEMBER_ALIAS_ATTRIBUTE),
                 hzInstance.getCluster().getLocalMember().getUuid()));
 
-    return listener.loadAll();
+    return listener.loadAll();*/
   }
 
   private Map<String, Member> servers() {
@@ -73,9 +78,13 @@ public class MemberCacheLoader
   @Override
   public void setHazelcastInstance(HazelcastInstance hazelcastInstance) {
     this.hzInstance = hazelcastInstance;
-    if(null == listener){
-      listener = new MemberInfoResponseListener();
-      hzInstance.<Member>getReliableTopic(Topic.MEMBER_INFO_RESPONSE.ref()).addMessageListener(listener);
+  }
+
+  public static final class Provider implements Factory<CacheLoader<String, Member>> {
+
+    @Override
+    public CacheLoader<String, Member> create() {
+      return new MemberCacheLoader();
     }
   }
 
@@ -90,27 +99,17 @@ public class MemberCacheLoader
       result.put(member.name(), member);
     }
 
-    public void waitFor(Collection<Client> connectedClients,
-        Duration wait) {
+    public void waitFor(Collection<Client> connectedClients, Duration wait) {
       result = new HashMap<>();
       clients = connectedClients;
       this.wait = wait;
-
     }
 
     public Map<String, Member> loadAll() {
-      while(result.size() != clients.size()){
+      while (result.size() != clients.size()) {
         // do nothing
       }
       return result;
-    }
-  }
-
-  public static final class Provider implements Factory<CacheLoader<String, Member>> {
-
-    @Override
-    public CacheLoader<String, Member> create() {
-      return new MemberCacheLoader();
     }
   }
 }

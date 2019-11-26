@@ -12,11 +12,9 @@ import com.hazelcast.spi.discovery.DiscoveryStrategyFactory
 import ht.eyfout.hz.configuration.Configs
 import spock.lang.PendingFeature
 import spock.lang.Specification
-import spock.lang.Subject
 
 import java.util.function.Function
 
-@Subject Hazelcast
 class ServerSpecification extends Specification {
     def cleanup() {
         HazelcastInstanceFactory.shutdownAll()
@@ -53,7 +51,6 @@ class ServerSpecification extends Specification {
     }
 }
 
-@Subject HazelcastClient
 class ClientServerSpecification extends Specification {
     def cleanup() {
         HazelcastInstanceFactory.shutdownAll()
@@ -98,7 +95,6 @@ class ClientServerSpecification extends Specification {
         thrown DuplicateInstanceNameException
     }
 
-    @PendingFeature
     def 'auto-populate'(){
         String serverName = "server: ${UUID.randomUUID()}"
         String clientName = "client: ${UUID.randomUUID()}"
@@ -139,7 +135,6 @@ class ClientServerSpecification extends Specification {
     }
 }
 
-@Subject DiscoveryStrategy
 class DiscoverySpecification extends Specification {
     def cleanup() {
         HazelcastInstanceFactory.shutdownAll()
@@ -197,7 +192,6 @@ class DiscoverySpecification extends Specification {
 
 }
 
-@Subject Quorum
 class QuorumSpecification extends Specification {
     def cleanup() {
         HazelcastInstanceFactory.shutdownAll()
