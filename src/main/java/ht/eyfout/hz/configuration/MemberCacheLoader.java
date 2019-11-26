@@ -1,29 +1,25 @@
 package ht.eyfout.hz.configuration;
 
+import com.hazelcast.core.Client;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.HazelcastInstanceAware;
-import com.hazelcast.core.ITopic;
-import com.hazelcast.core.Message;
-import com.hazelcast.core.MessageListener;
+import com.hazelcast.core.IMap;
 import ht.eyfout.hz.Member;
 import ht.eyfout.hz.configuration.Configs.Node;
-import ht.eyfout.hz.configuration.Configs.Topic;
 
 import javax.cache.configuration.Factory;
 import javax.cache.integration.CacheLoader;
 import javax.cache.integration.CacheLoaderException;
+import java.net.SocketAddress;
 import java.util.AbstractMap;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
 public class MemberCacheLoader implements CacheLoader<String, Member>, HazelcastInstanceAware {
 
-    protected MessageListener<Member> messageListener;
     private HazelcastInstance hzInstance;
 
     private MemberCacheLoader() {
@@ -32,7 +28,7 @@ public class MemberCacheLoader implements CacheLoader<String, Member>, Hazelcast
     @Override
     public Member load(final String key) throws CacheLoaderException {
         return Optional.ofNullable(servers().get(key))
-                .orElseGet(()->clients().get(key));
+                .orElseGet(() -> clients().get(key));
     }
 
     @Override
@@ -43,8 +39,16 @@ public class MemberCacheLoader implements CacheLoader<String, Member>, Hazelcast
     }
 
     private Map<String, Member> clients() {
-        //FIXME: get clients by name
-        return Collections.emptyMap();
+        final IMap<SocketAddress, String> map = hzInstance.getMap(Configs.Map.MEMBER_ADDRESS.ref());
+        Collection<Client> connectedClients = hzInstance.getClientService().getConnectedClients();
+        if (connectedClients.isEmpty()) {
+            return Collections.emptyMap();
+        } else {
+            return connectedClients.stream()
+                    .map(it -> new AbstractMap.SimpleImmutableEntry<>(map.get(it.getSocketAddress()), it.getUuid()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, it -> Member.client(it.getKey(), it.getValue())));
+        }
+
     }
 
     private Map<String, Member> servers() {
@@ -69,49 +73,6 @@ public class MemberCacheLoader implements CacheLoader<String, Member>, Hazelcast
         @Override
         public CacheLoader<String, Member> create() {
             return new MemberCacheLoader();
-        }
-    }
-
-
-    /**
-     * Using pub/sub to retrieve the Clients name.
-     * Cannot be used with CacheLoader
-     */
-    private class ClientMember implements Callable<Set<Member>>, MessageListener<Member> {
-        final Set<Member> connectedClients = new HashSet<>();
-        final ITopic<Member> responseTopic;
-        final ITopic<Member> requestTopic;
-        final Member origin;
-
-        ClientMember() {
-            final com.hazelcast.core.Member localMember = hzInstance.getCluster().getLocalMember();
-            origin =
-                    Member.server(
-                            localMember.getStringAttribute(Node.MEMBER_ALIAS_ATTRIBUTE), localMember.getUuid());
-            responseTopic = hzInstance.getReliableTopic(Topic.MEMBER_INFO_RESPONSE.ref());
-            requestTopic = hzInstance.getReliableTopic(Topic.MEMBER_INFO_REQUEST.ref());
-        }
-
-        @Override
-        public Set<Member> call() throws Exception {
-
-            int numberOfClients = hzInstance.getClientService().getConnectedClients().size();
-            Set<Member> clients = connectedClients;
-            if (numberOfClients > 0) {
-                responseTopic.addMessageListener(this);
-                requestTopic.publish(origin);
-                while (connectedClients.size() < numberOfClients) {
-                    //Wait for clients to respond
-                }
-            } else {
-                clients = Collections.emptySet();
-            }
-            return clients;
-        }
-
-        @Override
-        public void onMessage(Message<Member> message) {
-            connectedClients.add(message.getMessageObject());
         }
     }
 }

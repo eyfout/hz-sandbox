@@ -79,16 +79,25 @@ public final class Configs {
 
     public static final class Map {
         private static final String MEMBER_ALIAS_MAP = name("/member/alias/map");
+        private static final String MEMBER_ADDRESS_MAP = name("/member/address/map");
 
         public static final Configuration<String, Function<Config, MapConfig>, ?> MEMBER_ALIAS =
                 new Configuration<>(
                         MEMBER_ALIAS_MAP,
                         it -> {
                             MapConfig config = new MapConfig().setName(MEMBER_ALIAS_MAP);
-
                             it.addMapConfig(config);
                             return config;
                         });
+
+        public static final Configuration<String, Function<Config, MapConfig>,?> MEMBER_ADDRESS = new Configuration<>(
+                MEMBER_ADDRESS_MAP,
+                it->{
+                    MapConfig config = new MapConfig().setName(MEMBER_ADDRESS_MAP);
+                    it.addMapConfig(config);
+                    return config;
+                }
+        );
 
         private Map() {
         }

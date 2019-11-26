@@ -104,44 +104,31 @@ class ClientServerSpecification extends Specification {
         String serverName = "server: ${UUID.randomUUID()}"
         String clientName = "client: ${UUID.randomUUID()}"
 
-        given:
-        "$serverName"
+        given: "$serverName"
         def server = Configs.Node.server {
             Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.config().apply(it)
-            Configs.Topic.MEMBER_INFO_REQUEST.config().apply(it)
-            Configs.Topic.MEMBER_INFO_RESPONSE.config().apply(it)
+            Configs.Map.MEMBER_ADDRESS.config().apply(it)
             it.getMemberAttributeConfig().setStringAttribute(Configs.Node.MEMBER_ALIAS_ATTRIBUTE, serverName)
             it.setInstanceName(serverName)
         }
+        def serverMember = Member.server(serverName, server.localEndpoint.uuid)
 
-        Member serverMember = Member.server(serverName, server.localEndpoint.uuid)
-
-        when:
-        "$clientName joins"
+        when: "$clientName joins"
         def client = Configs.Node.client({
-            Configs.Topic.MEMBER_INFO_REQUEST.config2().ifPresent({ c->c.apply(it)})
-            Configs.Topic.MEMBER_INFO_RESPONSE.config2().ifPresent({ c->c.apply(it)})
             it.instanceName = clientName
         })
-
-        and:
-        "$clientName registers for topic (${Configs.Topic.MEMBER_INFO_REQUEST.ref()})"
         def clientMember = Member.client(clientName, client.localEndpoint.uuid)
-        client.getReliableTopic(Configs.Topic.MEMBER_INFO_REQUEST.ref()).addMessageListener(new MessageListener<Member>() {
-            @Override
-            void onMessage(Message<Member> message) {
-                client.getReliableTopic(Configs.Topic.MEMBER_INFO_RESPONSE.ref()).publish(clientMember)
-            }
-        })
+
+        and: "$clientName sets address in ${Configs.Map.MEMBER_ADDRESS.ref()}"
+        client.<SocketAddress, String>getMap(Configs.Map.MEMBER_ADDRESS.ref()).put(client.localEndpoint.socketAddress, clientName)
 
 
-        then:
-        "cache contains ${serverMember}"
+
+        then:"cache contains ${serverMember}"
         client.getCacheManager().getCache(Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.ref())
                 .get(serverName) == serverMember
 
-        and:
-        "$clientMember"
+        and:"${clientMember}"
         client.getCacheManager().getCache(Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.ref())
                 .get(clientName) == clientMember
     }
