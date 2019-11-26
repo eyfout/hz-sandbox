@@ -42,9 +42,11 @@ class ServerSpec extends Specification {
             it.getMemberAttributeConfig().setStringAttribute(Configs.Cache.AUTO_POPULATE_ATRRIBUTE_KEY, serverName)
             it.setInstanceName(serverName)
         }
-        expect:
+        def member = Member.server(serverName, server.localEndpoint.uuid)
+
+        expect:"cache contains ${member}"
         server.getCacheManager().getCache(Configs.Cache.AUTO_POPULATED_MEMBER.ref())
-                .get(serverName) == Member.server(serverName, server.localEndpoint.uuid)
+                .get(serverName) == member
     }
 }
 

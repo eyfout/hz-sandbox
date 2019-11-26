@@ -16,10 +16,12 @@ import com.hazelcast.instance.HazelcastInstanceFactory;
 import com.hazelcast.spi.properties.GroupProperty;
 import ht.eyfout.hz.Member;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import javax.cache.expiry.Duration;
 
 public final class Configs {
 
@@ -130,20 +132,25 @@ public final class Configs {
             });
 
     public static final String AUTO_POPULATE_ATRRIBUTE_KEY = "alias";
+    public static final Duration TWO_MILIS = new Duration(TimeUnit.MILLISECONDS, 2L);
 
-    public static final Configuration<String, Function<Config, CacheSimpleConfig>> AUTO_POPULATED_MEMBER = new Configuration<>(
-        "eyfout/auto-populate/member/alias/cache",
-        it->{
-          CacheSimpleConfig config = new CacheSimpleConfig()
-              .setName("eyfout/auto-populate/member/alias/cache")
-              .setKeyType(String.class.getTypeName())
-              .setValueType(Member.class.getTypeName())
-              .setReadThrough(true)
-              .setCacheLoaderFactory(MemberCacheLoader.Provider.class.getTypeName());
-          it.addCacheConfig(config);
-          return  config;
-        }
-    );
+    public static final Configuration<String, Function<Config, CacheSimpleConfig>>
+        AUTO_POPULATED_MEMBER =
+            new Configuration<>(
+                "eyfout/auto-populate/member/alias/cache",
+                it -> {
+                  CacheSimpleConfig config =
+                      new CacheSimpleConfig()
+                          .setName("eyfout/auto-populate/member/alias/cache")
+                          .setKeyType(String.class.getTypeName())
+                          .setValueType(Member.class.getTypeName())
+                          .setReadThrough(true)
+                          .setExpiryPolicyFactory(ExpiryPolicyFactory.class.getTypeName())
+                          .setCacheLoaderFactory(MemberCacheLoader.Provider.class.getTypeName());
+
+                  it.addCacheConfig(config);
+                  return config;
+                });
 
     private Cache() {}
   }

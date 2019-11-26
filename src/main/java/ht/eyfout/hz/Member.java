@@ -10,25 +10,26 @@ public final class Member implements Serializable {
   private final UUID id;
   private final boolean isClient;
 
-  public static Member client(String name, String id){
-      return client(name, UUID.fromString(id));
-  }
-
-  public static Member server(String name, String id){
-    return server(name, UUID.fromString(id));
-  }
-  public static Member client(String name, UUID id){
-    return new Member(true, name, id);
-  }
-
-  public static Member server(String name, UUID id){
-    return new Member(false, name, id);
-  }
-
   private Member(boolean isClient, String name, UUID id) {
     this.isClient = isClient;
     this.name = name;
     this.id = id;
+  }
+
+  public static Member client(String name, String id) {
+    return client(name, UUID.fromString(id));
+  }
+
+  public static Member server(String name, String id) {
+    return server(name, UUID.fromString(id));
+  }
+
+  public static Member client(String name, UUID id) {
+    return new Member(true, name, id);
+  }
+
+  public static Member server(String name, UUID id) {
+    return new Member(false, name, id);
   }
 
   public String name() {
