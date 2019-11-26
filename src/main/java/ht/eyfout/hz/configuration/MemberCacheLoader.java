@@ -39,6 +39,7 @@ public class MemberCacheLoader implements CacheLoader<String, Member>, Hazelcast
     }
 
     private Map<String, Member> clients() {
+        //FIXME
         final IMap<SocketAddress, String> map = hzInstance.getMap(Configs.Map.MEMBER_ADDRESS.ref());
         Collection<Client> connectedClients = hzInstance.getClientService().getConnectedClients();
         if (connectedClients.isEmpty()) {
