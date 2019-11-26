@@ -1,8 +1,10 @@
 package ht.eyfout.hz
 
+import com.hazelcast.client.HazelcastClient
 import com.hazelcast.config.DiscoveryConfig
 import com.hazelcast.config.DiscoveryStrategyConfig
 import com.hazelcast.core.DuplicateInstanceNameException
+import com.hazelcast.core.Message
 import com.hazelcast.core.MessageListener
 import com.hazelcast.instance.HazelcastInstanceFactory
 import com.hazelcast.logging.ILogger
@@ -10,7 +12,6 @@ import com.hazelcast.quorum.QuorumException
 import com.hazelcast.spi.discovery.DiscoveryStrategy
 import com.hazelcast.spi.discovery.DiscoveryStrategyFactory
 import ht.eyfout.hz.configuration.Configs
-import spock.lang.PendingFeature
 import spock.lang.Specification
 
 import java.util.function.Function
@@ -53,6 +54,7 @@ class ServerSpecification extends Specification {
 
 class ClientServerSpecification extends Specification {
     def cleanup() {
+        HazelcastClient.shutdownAll()
         HazelcastInstanceFactory.shutdownAll()
     }
 
@@ -108,7 +110,7 @@ class ClientServerSpecification extends Specification {
             it.setInstanceName(serverName)
         }
 
-        def serverMember = Member.server(serverName, server.localEndpoint.uuid)
+        Member serverMember = Member.server(serverName, server.localEndpoint.uuid)
 
         when: "$clientName joins"
         def client = Configs.Node.client({
@@ -119,10 +121,12 @@ class ClientServerSpecification extends Specification {
 
         and: "$clientName registers for topic (${Configs.Topic.MEMBER_INFO_REQUEST.ref()})"
         def clientMember = Member.client(clientName, client.localEndpoint.uuid)
-        MessageListener<Member> clientMessageListener = Mock(){
-            onMessage(_) >> client.getReliableTopic(Configs.Topic.MEMBER_INFO_RESPONSE.ref()).publish(clientMember)
-        }
-        client.getReliableTopic(Configs.Topic.MEMBER_INFO_REQUEST.ref()).addMessageListener(clientMessageListener)
+        client.getReliableTopic(Configs.Topic.MEMBER_INFO_REQUEST.ref()).addMessageListener(new MessageListener<Member>() {
+            @Override
+            void onMessage(Message<Member> message) {
+                client.getReliableTopic(Configs.Topic.MEMBER_INFO_RESPONSE.ref()).publish(clientMember)
+            }
+        })
 
 
         then:"cache contains ${serverMember}"
@@ -194,6 +198,7 @@ class DiscoverySpecification extends Specification {
 
 class QuorumSpecification extends Specification {
     def cleanup() {
+        HazelcastClient.shutdownAll()
         HazelcastInstanceFactory.shutdownAll()
     }
 
