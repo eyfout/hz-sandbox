@@ -3,6 +3,7 @@ package ht.eyfout.hz
 import com.hazelcast.config.DiscoveryConfig
 import com.hazelcast.config.DiscoveryStrategyConfig
 import com.hazelcast.core.DuplicateInstanceNameException
+import com.hazelcast.core.MessageListener
 import com.hazelcast.instance.HazelcastInstanceFactory
 import com.hazelcast.logging.ILogger
 import com.hazelcast.quorum.QuorumException
@@ -11,10 +12,12 @@ import com.hazelcast.spi.discovery.DiscoveryStrategyFactory
 import ht.eyfout.hz.configuration.Configs
 import spock.lang.PendingFeature
 import spock.lang.Specification
+import spock.lang.Subject
 
 import java.util.function.Function
 
-class ServerSpec extends Specification {
+@Subject Hazelcast
+class ServerSpecification extends Specification {
     def cleanup() {
         HazelcastInstanceFactory.shutdownAll()
     }
@@ -22,7 +25,7 @@ class ServerSpec extends Specification {
     def 'reading from a distributed map'() {
         given: 'a server'
         def server = Configs.Node.server {
-            Configs.Map.MEMBER_ALIAS.config().apply it
+            Configs.Map.MEMBER_ALIAS.serverConfig().apply it
         }
 
         when: 'a client updates a distributed map'
@@ -38,19 +41,20 @@ class ServerSpec extends Specification {
     def 'auto-populate cache using cache loader'() {
         String serverName = "server: ${UUID.randomUUID()}"
         def server = Configs.Node.server {
-            Configs.Cache.AUTO_POPULATED_MEMBER.config().apply(it)
-            it.getMemberAttributeConfig().setStringAttribute(Configs.Cache.AUTO_POPULATE_ATRRIBUTE_KEY, serverName)
+            Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.serverConfig().apply(it)
+            it.getMemberAttributeConfig().setStringAttribute(Configs.Node.MEMBER_ALIAS_ATTRIBUTE, serverName)
             it.setInstanceName(serverName)
         }
         def member = Member.server(serverName, server.localEndpoint.uuid)
 
         expect:"cache contains ${member}"
-        server.getCacheManager().getCache(Configs.Cache.AUTO_POPULATED_MEMBER.ref())
+        server.getCacheManager().getCache(Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.ref())
                 .get(serverName) == member
     }
 }
 
-class ClientServerSpec extends Specification {
+@Subject HazelcastClient
+class ClientServerSpecification extends Specification {
     def cleanup() {
         HazelcastInstanceFactory.shutdownAll()
     }
@@ -94,51 +98,49 @@ class ClientServerSpec extends Specification {
         thrown DuplicateInstanceNameException
     }
 
-
     @PendingFeature
-    def 'execute job on remote node by name'() {
-        def serverName = "server: ${UUID.randomUUID()}"
-        def clientName = "client: ${UUID.randomUUID()}"
-        def clientName2 = "client: ${UUID.randomUUID()}"
+    def 'auto-populate'(){
+        String serverName = "server: ${UUID.randomUUID()}"
+        String clientName = "client: ${UUID.randomUUID()}"
 
-        given:
-        "server ${serverName} and client ${clientName}"
-        def server = Configs.Node.server({
+        given:"$serverName"
+        def server = Configs.Node.server {
+            Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.serverConfig().apply(it)
+            Configs.Topic.MEMBER_INFO_REQUEST.serverConfig().apply(it)
+            Configs.Topic.MEMBER_INFO_RESPONSE.serverConfig().apply(it)
+            it.getMemberAttributeConfig().setStringAttribute(Configs.Node.MEMBER_ALIAS_ATTRIBUTE, serverName)
             it.setInstanceName(serverName)
-            Configs.Cache.MEMBER_ALIAS.config().apply(it)
-        })
-        server.getCacheManager()
-                .getCache(Configs.Cache.MEMBER_ALIAS.ref())
-                .put(serverName, Member.client(serverName, server.getLocalEndpoint().getUuid()))
+        }
 
+        def serverMember = Member.server(serverName, server.localEndpoint.uuid)
 
+        when: "$clientName joins"
         def client = Configs.Node.client({
-            it.setInstanceName(clientName)
+            Configs.Topic.MEMBER_INFO_REQUEST.clientConfig().apply(it)
+            Configs.Topic.MEMBER_INFO_RESPONSE.clientConfig().apply(it)
+            it.instanceName = clientName
         })
-        client.getCacheManager()
-                .getCache(Configs.Cache.MEMBER_ALIAS.ref())
-                .put(clientName, Member.client(clientName, client.getLocalEndpoint().getUuid()))
 
-        when:
-        "client ${clientName2} joins"
-        def client2 = Configs.Node.client({
-            it.setInstanceName(clientName2)
-        })
-        client2.getCacheManager()
-                .getCache(Configs.Cache.MEMBER_ALIAS.ref())
-                .put(clientName2, Member.client(clientName2, client2.getLocalEndpoint().getUuid()))
+        and: "$clientName registers for topic (${Configs.Topic.MEMBER_INFO_REQUEST.ref()})"
+        def clientMember = Member.client(clientName, client.localEndpoint.uuid)
+        MessageListener<Member> clientMessageListener = Mock(){
+            onMessage(_) >> client.getReliableTopic(Configs.Topic.MEMBER_INFO_RESPONSE.ref()).publish(clientMember)
+        }
+        client.getReliableTopic(Configs.Topic.MEMBER_INFO_REQUEST.ref()).addMessageListener(clientMessageListener)
 
 
+        then:"cache contains ${serverMember}"
+        client.getCacheManager().getCache(Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.ref())
+                .get(serverName) == serverMember
 
-        then: ''
-        //TODO remote execution to other nodes by name
-        client
+        and: "$clientMember"
+        client.getCacheManager().getCache(Configs.Cache.AUTO_POPULATE_MEMBER_ALIAS.ref())
+                .get(clientName) == clientMember
     }
-
-
 }
 
-class DiscoverySpec extends Specification {
+@Subject DiscoveryStrategy
+class DiscoverySpecification extends Specification {
     def cleanup() {
         HazelcastInstanceFactory.shutdownAll()
     }
@@ -195,7 +197,8 @@ class DiscoverySpec extends Specification {
 
 }
 
-class QuorumSpec extends Specification {
+@Subject Quorum
+class QuorumSpecification extends Specification {
     def cleanup() {
         HazelcastInstanceFactory.shutdownAll()
     }
@@ -204,7 +207,7 @@ class QuorumSpec extends Specification {
         given: 'a cache with a 3 member quorum'
         def server = Configs.Node.server({
             Configs.Node.QUORUM.apply(it, Configs.Node.THREE_MEMBER_QUORUM)
-            Configs.Cache.MEMBER_ALIAS.config().apply(it).setQuorumName(Configs.Node.THREE_MEMBER_QUORUM.get().name)
+            Configs.Cache.MEMBER_ALIAS.serverConfig().apply(it).setQuorumName(Configs.Node.THREE_MEMBER_QUORUM.get().name)
             it
         })
         when: 'using cache before quorum'
@@ -222,14 +225,14 @@ class QuorumSpec extends Specification {
         given: 'cache with 2 member quorum'
         Configs.Node.server({
             Configs.Node.QUORUM.apply(it, Configs.Node.TWO_MEMBER_QUORUM)
-            Configs.Cache.MEMBER_ALIAS.config().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
+            Configs.Cache.MEMBER_ALIAS.serverConfig().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
             it
         })
 
         when: 'a second member joins'
         def server = Configs.Node.server({
             Configs.Node.QUORUM.apply(it, Configs.Node.TWO_MEMBER_QUORUM)
-            Configs.Cache.MEMBER_ALIAS.config().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
+            Configs.Cache.MEMBER_ALIAS.serverConfig().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
             it
         })
 
@@ -250,7 +253,7 @@ class QuorumSpec extends Specification {
         given: 'cache with 2 member quorum'
         def server = Configs.Node.server({
             Configs.Node.QUORUM.apply(it, Configs.Node.TWO_MEMBER_QUORUM)
-            Configs.Cache.MEMBER_ALIAS.config().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
+            Configs.Cache.MEMBER_ALIAS.serverConfig().apply(it).setQuorumName(Configs.Node.TWO_MEMBER_QUORUM.get().name)
             it
         })
 

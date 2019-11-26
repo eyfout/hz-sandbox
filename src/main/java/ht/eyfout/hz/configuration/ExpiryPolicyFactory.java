@@ -8,6 +8,6 @@ import javax.cache.expiry.ExpiryPolicy;
 public class ExpiryPolicyFactory implements Factory<ExpiryPolicy> {
   @Override
   public ExpiryPolicy create() {
-    return new CreatedExpiryPolicy(Cache.TWO_MILIS);
+    return new CreatedExpiryPolicy(Cache.AUTO_POPULATE_EXPIRY);
   }
 }

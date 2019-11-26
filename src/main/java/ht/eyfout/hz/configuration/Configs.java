@@ -2,12 +2,14 @@ package ht.eyfout.hz.configuration;
 
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.client.config.ClientConfig;
+import com.hazelcast.client.config.ClientReliableTopicConfig;
 import com.hazelcast.config.CacheSimpleConfig;
 import com.hazelcast.config.Config;
 import com.hazelcast.config.DiscoveryConfig;
 import com.hazelcast.config.DiscoveryStrategyConfig;
 import com.hazelcast.config.MapConfig;
 import com.hazelcast.config.QuorumConfig;
+import com.hazelcast.config.ReliableTopicConfig;
 import com.hazelcast.config.properties.PropertyDefinition;
 import com.hazelcast.config.properties.PropertyTypeConverter;
 import com.hazelcast.config.properties.SimplePropertyDefinition;
@@ -27,9 +29,47 @@ public final class Configs {
 
   private Configs() {}
 
+  public static final class Topic {
+
+    public static final Configuration<
+            String,
+            Function<Config, ReliableTopicConfig>,
+            Function<ClientConfig, ClientReliableTopicConfig>>
+        MEMBER_INFO_REQUEST =
+            new Configuration<>(
+                "eyfout/member/info/request",
+                it -> createTopic(it, "eyfout/member/info/request"),
+                it -> createTopic(it, "eyfout/member/info/request"));
+
+    public static final Configuration<
+            String,
+            Function<Config, ReliableTopicConfig>,
+            Function<ClientConfig, ClientReliableTopicConfig>>
+        MEMBER_INFO_RESPONSE =
+            new Configuration<>(
+                "eyfout/member/info/response",
+                it -> createTopic(it, "eyfout/member/info/response"),
+                it -> createTopic(it, "eyfout/member/info/response"));
+
+    private Topic() {}
+
+    private static ReliableTopicConfig createTopic(Config it, String topic) {
+      ReliableTopicConfig config = new ReliableTopicConfig().setName(topic);
+      it.addReliableTopicConfig(config);
+      return config;
+    }
+
+    private static ClientReliableTopicConfig createTopic(ClientConfig it, String topic) {
+      ClientReliableTopicConfig config = new ClientReliableTopicConfig();
+      config.setName(topic);
+      it.addReliableTopicConfig(config);
+      return config;
+    }
+  }
+
   public static final class Map {
 
-    public static final Configuration<String, Function<Config, MapConfig>> MEMBER_ALIAS =
+    public static final Configuration<String, Function<Config, MapConfig>, ?> MEMBER_ALIAS =
         new Configuration<>(
             "eyfout/member/alias/map",
             it -> {
@@ -98,6 +138,8 @@ public final class Configs {
           config.getQuorumConfigs().put(quorumConfig.getName(), quorumConfig);
           return quorumConfig;
         };
+    public static final String MEMBER_ALIAS_ATTRIBUTE = "alias";
+    public static final Duration HEARTBEAT = new Duration(TimeUnit.MILLISECONDS, 2L);
 
     private Node() {}
 
@@ -118,7 +160,7 @@ public final class Configs {
 
   public static final class Cache {
 
-    public static final Configuration<String, Function<Config, CacheSimpleConfig>> MEMBER_ALIAS =
+    public static final Configuration<String, Function<Config, CacheSimpleConfig>, ?> MEMBER_ALIAS =
         new Configuration<>(
             "eyfout/member/alias/cache",
             it -> {
@@ -131,11 +173,11 @@ public final class Configs {
               return config;
             });
 
-    public static final String AUTO_POPULATE_ATRRIBUTE_KEY = "alias";
     public static final Duration TWO_MILIS = new Duration(TimeUnit.MILLISECONDS, 2L);
+    public static final Duration AUTO_POPULATE_EXPIRY = TWO_MILIS;
 
-    public static final Configuration<String, Function<Config, CacheSimpleConfig>>
-        AUTO_POPULATED_MEMBER =
+    public static final Configuration<String, Function<Config, CacheSimpleConfig>, ?>
+        AUTO_POPULATE_MEMBER_ALIAS =
             new Configuration<>(
                 "eyfout/auto-populate/member/alias/cache",
                 it -> {
