@@ -82,7 +82,7 @@ class ClientServerSpecification extends Specification {
         def serverName = "server: ${UUID.randomUUID()}"
         def clientName = "client: ${UUID.randomUUID()}"
 
-        given: 'a client-server deployment'
+        given: "$serverName and $clientName"
         Configs.Node.server({
             it.setInstanceName(serverName)
         })
@@ -90,7 +90,7 @@ class ClientServerSpecification extends Specification {
             it.setInstanceName(clientName)
         })
 
-        when: 'client joins with an instance name in cluster'
+        when: "a new client($clientName) joins"
         Configs.Node.client({
             it.setInstanceName(clientName)
         })
