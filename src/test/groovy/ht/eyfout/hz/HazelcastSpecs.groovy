@@ -10,6 +10,7 @@ import com.hazelcast.quorum.QuorumException
 import com.hazelcast.spi.discovery.DiscoveryStrategy
 import com.hazelcast.spi.discovery.DiscoveryStrategyFactory
 import ht.eyfout.hz.configuration.MemberService
+import spock.lang.Ignore
 import spock.lang.PendingFeature
 import spock.lang.Specification
 
@@ -66,10 +67,6 @@ class ServerSpecification extends HazelcastSpecs {
 }
 
 class ClientServerSpecification extends HazelcastSpecs {
-    def cleanup() {
-        HazelcastClient.shutdownAll()
-        HazelcastInstanceFactory.shutdownAll()
-    }
 
     def 'specify instance names for endpoints'() {
         def server = Nodes.server({
@@ -106,8 +103,8 @@ class ClientServerSpecification extends HazelcastSpecs {
         thrown DuplicateInstanceNameException
     }
 
-    @PendingFeature
-    def 'auto-populate'() {
+    @Ignore ("Cache cannot perform remote tasks in CacheLoader, see custom Service instead")
+    def 'auto-populate cache with cluster topology'() {
         given:
         "$serverName"
         def server = Nodes.server {
@@ -144,11 +141,6 @@ class ClientServerSpecification extends HazelcastSpecs {
 }
 
 class DiscoverySpecification extends HazelcastSpecs {
-    def cleanup() {
-        HazelcastInstanceFactory.shutdownAll()
-    }
-
-
     def 'define custom discovery strategy'() {
         given: 'a custom discovery strategy'
         def strategy = new MockDiscoveryStrategy(Mock(ILogger), [:])
@@ -201,11 +193,6 @@ class DiscoverySpecification extends HazelcastSpecs {
 }
 
 class QuorumSpecification extends HazelcastSpecs {
-    def cleanup() {
-        HazelcastClient.shutdownAll()
-        HazelcastInstanceFactory.shutdownAll()
-    }
-
     def 'quorum requirements not met'() {
         given: 'a cache with a 3 member quorum'
         def server = Nodes.server({
@@ -278,12 +265,7 @@ class QuorumSpecification extends HazelcastSpecs {
 }
 
 class ServiceSpecification extends HazelcastSpecs {
-    def cleanup() {
-        HazelcastClient.shutdownAll()
-        HazelcastInstanceFactory.shutdownAll()
-    }
-
-    def 'Deploy membership service'() {
+    def 'deploy membership service'() {
         def server = Nodes.server({
             Services.MEMBER_ALIAS.serverConfig().apply(it)
             it.setInstanceName(serverName)
@@ -291,36 +273,32 @@ class ServiceSpecification extends HazelcastSpecs {
         })
         MemberService.Membership membership = server.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
 
-
-        expect:
+        expect: "${serverName} is a member"
         membership.members().contains(Member.server(serverName, server.localEndpoint.uuid))
     }
 
-//    @PendingFeature
-    def 'access deployed service from client'() {
-        def server = Nodes.server({
+    def 'access membership service for client'() {
+        given:"${serverName}"
+        Nodes.server({
             Services.MEMBER_ALIAS.serverConfig().apply(it)
             Maps.MEMBER_ADDRESS.serverConfig().apply(it)
-            Topics.MEMBER_INFO_RESPONSE.serverConfig().apply(it)
-            Topics.MEMBER_INFO_REQUEST.serverConfig().apply(it)
             it.setInstanceName(serverName)
             it.getMemberAttributeConfig().setStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE, serverName)
         })
 
+        when: "${clientName} joins the cluster"
         def client = Nodes.client({
             Services.MEMBER_ALIAS.clientConfig().ifPresent({ c -> c.apply(it) })
-            Topics.MEMBER_INFO_RESPONSE.clientConfig().ifPresent({ c -> c.apply(it) })
-            Topics.MEMBER_INFO_REQUEST.clientConfig().ifPresent({ c -> c.apply(it) })
             it.instanceName = clientName
         })
-
         client.getMap(Maps.MEMBER_ADDRESS_MAP).put(client.getLocalEndpoint().socketAddress, clientName)
+
+        and: 'request membership information about the cluster'
         MemberService.Membership membership = client.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
         def members = membership.members()
 
-        expect:
+        then:"only ${clientName} is reported"
         members.size() == 1
         members.contains(Member.client(clientName, client.localEndpoint.uuid))
-
     }
 }
