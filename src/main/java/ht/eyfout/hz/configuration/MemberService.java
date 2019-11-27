@@ -2,8 +2,12 @@ package ht.eyfout.hz.configuration;
 
 import static ht.eyfout.hz.configuration.Configs.name;
 
+import com.google.common.base.Stopwatch;
+import com.hazelcast.client.impl.protocol.ClientMessage;
+import com.hazelcast.client.impl.protocol.codec.DistributedObjectInfoCodec;
 import com.hazelcast.client.spi.ClientContext;
 import com.hazelcast.client.spi.ClientProxy;
+import com.hazelcast.client.spi.impl.ClientInvocation;
 import com.hazelcast.client.spi.impl.ClientProxyFactoryWithContext;
 import com.hazelcast.core.Client;
 import com.hazelcast.core.DistributedObject;
@@ -19,6 +23,7 @@ import ht.eyfout.hz.configuration.Configs.Maps;
 import ht.eyfout.hz.configuration.Configs.Nodes;
 import ht.eyfout.hz.configuration.Configs.Services;
 import java.net.SocketAddress;
+import java.time.temporal.ChronoUnit;
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.Collections;
@@ -29,8 +34,10 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.time.Duration;
 
 public final class MemberService implements ManagedService, RemoteService {
 
@@ -98,9 +105,14 @@ public final class MemberService implements ManagedService, RemoteService {
 
   static final class ClientMembershipProxy extends ClientProxy implements Membership {
 
+    Set<Member> members = new HashSet<>();
+    Stopwatch expiration = Stopwatch.createUnstarted();
+    final Duration expired;
+
     protected ClientMembershipProxy(String name,
         ClientContext context) {
       super(NAME, name, context);
+      expired = Duration.of( Nodes.HEARTBEAT.getDurationAmount() * 3L, ChronoUnit.MILLIS);
     }
 
     @Override
@@ -110,6 +122,22 @@ public final class MemberService implements ManagedService, RemoteService {
 
     @Override
     public Set<Member> clients() {
+      if(members.isEmpty() || (expiration.isRunning() && expiration.elapsed().compareTo(expired) >= 0 )) {
+        members = getViaExecutorSvc();
+        resetClock();
+      }
+      return members;
+    }
+
+    private void resetClock(){
+      if(expiration.isRunning()){
+        expiration.reset();
+      } else {
+        expiration.start();
+      }
+    }
+
+    private Set<Member> getViaExecutorSvc(){
       final String groupName = getClient().getConfig().getGroupConfig().getName();
       final Future<Collection<Client>> future = getContext().getExecutionService()
           .getUserExecutor().submit(() -> {
@@ -137,7 +165,6 @@ public final class MemberService implements ManagedService, RemoteService {
       }
       return Collections.emptySet();
     }
-
 
     static final class Provider extends ClientProxyFactoryWithContext {
 
