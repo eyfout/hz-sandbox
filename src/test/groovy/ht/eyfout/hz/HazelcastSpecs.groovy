@@ -297,7 +297,6 @@ class ServiceSpecification extends HazelcastSpecs {
         and: 'request membership information about the cluster'
         MemberService.Membership membership = client.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
         def members = membership.members()
-        def members2 = membership.members()
 
         then:"only ${clientName} is reported"
         members.size() == 1
