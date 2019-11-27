@@ -5,7 +5,8 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.HazelcastInstanceAware;
 import com.hazelcast.core.IMap;
 import ht.eyfout.hz.Member;
-import ht.eyfout.hz.configuration.Configs.Node;
+import ht.eyfout.hz.configuration.Configs.Maps;
+import ht.eyfout.hz.configuration.Configs.Nodes;
 
 import javax.cache.configuration.Factory;
 import javax.cache.integration.CacheLoader;
@@ -58,7 +59,7 @@ public class MemberCacheLoader implements CacheLoader<String, Member>, Hazelcast
                 .map(
                         endpoint ->
                                 new AbstractMap.SimpleImmutableEntry<>(
-                                        endpoint.getStringAttribute(Node.MEMBER_ALIAS_ATTRIBUTE), endpoint))
+                                        endpoint.getStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE), endpoint))
                 .collect(
                         Collectors.toMap(
                                 Map.Entry::getKey,
@@ -75,7 +76,7 @@ public class MemberCacheLoader implements CacheLoader<String, Member>, Hazelcast
 
         @Override
         public CacheLoader<String, Member> create() {
-            return new MemberCacheLoader(hzInstance.getMap(Configs.Map.MEMBER_ADDRESS.ref()));
+            return new MemberCacheLoader(hzInstance.getMap(Maps.MEMBER_ADDRESS.ref()));
         }
 
         @Override

@@ -28,7 +28,7 @@ public final class Configuration<Ref, Config1, Config2> {
      * Primary configuration
      * @return
      */
-    public Config1 config() {
+    public Config1 serverConfig() {
         return config;
     }
 
@@ -36,7 +36,7 @@ public final class Configuration<Ref, Config1, Config2> {
      * Secondary configuration
      * @return
      */
-    public Optional<Config2> config2() {
+    public Optional<Config2> clientConfig() {
         return Optional.ofNullable(config2);
     }
 }

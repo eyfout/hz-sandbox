@@ -20,6 +20,7 @@ import com.hazelcast.instance.HazelcastInstanceFactory;
 import com.hazelcast.spi.properties.GroupProperty;
 import ht.eyfout.hz.Member;
 
+import ht.eyfout.hz.configuration.MemberService.ClientMembershipProxy;
 import javax.cache.expiry.Duration;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -37,7 +38,7 @@ public final class Configs {
         return "eyfout/" + element;
     }
 
-    public static final class Service {
+    public static final class Services {
         public static final String MEMBER_ALIAS_SERVICE = MemberService.NAME;
         public static final Configuration<String, Function<Config, ServiceConfig>, Function<ClientConfig, ProxyFactoryConfig>> MEMBER_ALIAS = new Configuration<>(
                 MEMBER_ALIAS_SERVICE,
@@ -52,19 +53,21 @@ public final class Configs {
                     return config;
                 },
                 it->{
-                    ProxyFactoryConfig config = new ProxyFactoryConfig();
+                    ProxyFactoryConfig config = new ProxyFactoryConfig()
+                        .setClassName(ClientMembershipProxy.Provider.class.getTypeName())
+                        .setService(MEMBER_ALIAS_SERVICE);
                     it.addProxyFactoryConfig(config);
                     return config;
                 }
         );
 
-        private Service() {
+        private Services() {
         }
     }
 
-    public static final class Topic {
+    public static final class Topics {
 
-        static final String MEMBER_INFO_REQUEST_TOPIC = name("member/info/request/topic");
+        public static final String MEMBER_INFO_REQUEST_TOPIC = name("member/info/request/topic");
         public static final Configuration<
                 String,
                 Function<Config, ReliableTopicConfig>,
@@ -76,7 +79,7 @@ public final class Configs {
                         it -> createTopic(it, MEMBER_INFO_REQUEST_TOPIC));
 
 
-        static final String MEMBER_INFO_RESPONSE_TOPIC = name("member/info/response/topic");
+        public static final String MEMBER_INFO_RESPONSE_TOPIC = name("member/info/response/topic");
         public static final Configuration<
                 String,
                 Function<Config, ReliableTopicConfig>,
@@ -87,7 +90,7 @@ public final class Configs {
                         it -> createTopic(it, MEMBER_INFO_RESPONSE_TOPIC),
                         it -> createTopic(it, MEMBER_INFO_RESPONSE_TOPIC));
 
-        private Topic() {
+        private Topics() {
         }
 
         private static ReliableTopicConfig createTopic(Config it, String topic) {
@@ -104,7 +107,7 @@ public final class Configs {
         }
     }
 
-    public static final class Map {
+    public static final class Maps {
         static final String MEMBER_ALIAS_MAP = name("/member/alias/map");
         public static final Configuration<String, Function<Config, MapConfig>, ?> MEMBER_ALIAS =
                 new Configuration<>(
@@ -124,7 +127,7 @@ public final class Configs {
                 }
         );
 
-        private Map() {
+        private Maps() {
         }
     }
 
@@ -171,7 +174,7 @@ public final class Configs {
         }
     }
 
-    public static final class Node {
+    public static final class Nodes {
 
         public static final Supplier<QuorumConfig> TWO_MEMBER_QUORUM =
                 () -> new QuorumConfig(name("2/member/quorum"), true, 2);
@@ -189,7 +192,7 @@ public final class Configs {
         public static final Duration HEARTBEAT = new Duration(TimeUnit.MILLISECONDS, 2L);
         private static String DEFAULT_GROUP = name("cluster/group");
 
-        private Node() {
+        private Nodes() {
         }
 
         public static final HazelcastInstance client(Consumer<ClientConfig> configurations) {
@@ -207,7 +210,7 @@ public final class Configs {
         }
     }
 
-    public static final class Cache {
+    public static final class Caches {
         public static final Duration TWO_MILIS = new Duration(TimeUnit.MILLISECONDS, 2L);
         public static final Duration AUTO_POPULATE_EXPIRY = TWO_MILIS;
         static final String MEMBER_ALIAS_CACHE = name("member/alias/cache");
@@ -243,7 +246,7 @@ public final class Configs {
                             return config;
                         });
 
-        private Cache() {
+        private Caches() {
         }
     }
 }
