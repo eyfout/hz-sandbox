@@ -110,13 +110,16 @@ public final class MemberService implements ManagedService, RemoteService {
 
     @Override
     public Set<Member> clients() {
+      final String groupName = getClient().getConfig().getGroupConfig().getName();
       final Future<Collection<Client>> future = getContext().getExecutionService()
-          .getUserExecutor().submit(() ->
-              //FIXME will this be an issue for VBD?
-              HazelcastInstanceFactory.getAllHazelcastInstances()
-                  .toArray(new HazelcastInstance[0])[0].getClientService()
-                  .getConnectedClients()
-          );
+          .getUserExecutor().submit(() -> {
+            final Set<Client> result = new HashSet<>();
+            HazelcastInstanceFactory.getAllHazelcastInstances().stream()
+                .filter(it -> it.getConfig().getGroupConfig().getName().equals(groupName))
+                .findFirst()
+                .ifPresent(it -> result.addAll(it.getClientService().getConnectedClients()));
+            return result;
+          });
 
       try {
         final IMap<SocketAddress, String> map = getContext().getHazelcastInstance()
