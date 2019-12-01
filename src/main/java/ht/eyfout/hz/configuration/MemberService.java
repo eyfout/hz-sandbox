@@ -151,33 +151,6 @@ public final class MemberService implements ManagedService, RemoteService {
         throw new IllegalStateException("No active members in cluster");
     }
 
-    private Set<Member> getViaExecutorSvc(){
-      final String groupName = getClient().getConfig().getGroupConfig().getName();
-      final Future<Collection<Client>> future = getContext().getExecutionService()
-          .getUserExecutor().submit(() -> {
-            final Set<Client> result = new HashSet<>();
-            HazelcastInstanceFactory.getAllHazelcastInstances().stream()
-                .filter(it -> it.getConfig().getGroupConfig().getName().equals(groupName))
-                .findFirst()
-                .ifPresent(it -> result.addAll(it.getClientService().getConnectedClients()));
-            return result;
-          });
-
-      try {
-        final IMap<SocketAddress, String> map = getContext().getHazelcastInstance()
-            .getMap(Maps.MEMBER_ADDRESS_MAP);
-
-        return future.get().stream()
-            .map(it -> new AbstractMap.SimpleImmutableEntry<>(map.get(it.getSocketAddress()),
-                it.getUuid()))
-            .map(it -> Member.client(it.getKey(), it.getValue()))
-            .collect(Collectors.toSet());
-      } catch (InterruptedException | ExecutionException e) {
-        e.printStackTrace();
-      }
-      return Collections.emptySet();
-    }
-
     static final class Provider extends ClientProxyFactoryWithContext {
 
       @Override
