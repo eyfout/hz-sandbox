@@ -3,12 +3,8 @@ package ht.eyfout.hz.configuration;
 import static ht.eyfout.hz.configuration.Configs.name;
 
 import com.google.common.base.Stopwatch;
-import com.hazelcast.client.impl.protocol.codec.ClientGetDistributedObjectsCodec;
-import com.hazelcast.client.impl.protocol.codec.ClientGetDistributedObjectsCodec.ResponseParameters;
 import com.hazelcast.client.spi.ClientContext;
 import com.hazelcast.client.spi.ClientProxy;
-import com.hazelcast.client.spi.impl.ClientInvocation;
-import com.hazelcast.client.spi.impl.ClientInvocationFuture;
 import com.hazelcast.client.spi.impl.ClientProxyFactoryWithContext;
 import com.hazelcast.core.Client;
 import com.hazelcast.core.DistributedObject;
@@ -30,7 +26,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -104,13 +99,13 @@ public final class MemberService implements ManagedService, RemoteService {
   static final class ClientMembershipProxy extends ClientProxy implements Membership {
 
     Set<Member> members = new HashSet<>();
-    Stopwatch expiration = Stopwatch.createUnstarted();
-    final Duration expired;
+    Stopwatch expiry = Stopwatch.createUnstarted();
+    final Duration expiration;
 
     ClientMembershipProxy(String name,
                           ClientContext context) {
       super(SERVICE_NAME, name, context);
-      expired = Duration.of( Nodes.HEARTBEAT.getDurationAmount() * 3L, ChronoUnit.MILLIS);
+      expiration = Duration.of( Nodes.HEARTBEAT.getDurationAmount() * 3L, ChronoUnit.MILLIS);
     }
 
     @Override
@@ -120,19 +115,40 @@ public final class MemberService implements ManagedService, RemoteService {
 
     @Override
     public Set<Member> clients() {
-      if(members.isEmpty() || (expiration.isRunning() && expiration.elapsed().compareTo(expired) >= 0 )) {
-        members = getViaExecutorSvc();
+      if(members.isEmpty() || (expiry.isRunning() && expiry.elapsed().compareTo(expiration) >= 0 )) {
+        members = getFromRemoteMembershipSvc();
         resetClock();
       }
       return members;
     }
 
     private void resetClock(){
-      if(expiration.isRunning()){
-        expiration.reset();
+      if(expiry.isRunning()){
+        expiry.reset();
       } else {
-        expiration.start();
+        expiry.start();
       }
+    }
+
+    private Set<Member> getFromRemoteMembershipSvc(){
+        final String groupName = getClient().getConfig().getGroupConfig().getName();
+
+        final Future<Set<Member>> future = getContext().getExecutionService()
+                .getUserExecutor().submit(() -> {
+                    final Set<Member> result = new HashSet<>();
+                    HazelcastInstanceFactory.getAllHazelcastInstances().stream()
+                            .filter(it -> it.getConfig().getGroupConfig().getName().equals(groupName))
+                            .findFirst()
+                            .ifPresent(it -> result.addAll(((Membership)it.getDistributedObject(SERVICE_NAME, "")).clients()));
+                    return result;
+                });
+
+        try {
+            return future.get();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+        throw new IllegalStateException("No active members in cluster");
     }
 
     private Set<Member> getViaExecutorSvc(){
