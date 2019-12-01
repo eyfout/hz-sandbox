@@ -39,7 +39,7 @@ public final class Configs {
     }
 
     public static final class Services {
-        public static final String MEMBER_ALIAS_SERVICE = MemberService.NAME;
+        public static final String MEMBER_ALIAS_SERVICE = MemberService.SERVICE_NAME;
         public static final Configuration<String, Function<Config, ServiceConfig>, Function<ClientConfig, ProxyFactoryConfig>> MEMBER_ALIAS = new Configuration<>(
                 MEMBER_ALIAS_SERVICE,
                 it -> {

@@ -54,6 +54,15 @@ public final class Member implements Serializable {
         return Objects.hash(name, id);
     }
 
+    @Override
+    public String toString() {
+        return "Member{" +
+            "name='" + name + '\'' +
+            ", id=" + id +
+            ", isClient=" + isClient +
+            '}';
+    }
+
     public UUID id() {
         return id;
     }

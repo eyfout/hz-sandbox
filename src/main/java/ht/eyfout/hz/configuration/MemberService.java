@@ -3,11 +3,12 @@ package ht.eyfout.hz.configuration;
 import static ht.eyfout.hz.configuration.Configs.name;
 
 import com.google.common.base.Stopwatch;
-import com.hazelcast.client.impl.protocol.ClientMessage;
-import com.hazelcast.client.impl.protocol.codec.DistributedObjectInfoCodec;
+import com.hazelcast.client.impl.protocol.codec.ClientGetDistributedObjectsCodec;
+import com.hazelcast.client.impl.protocol.codec.ClientGetDistributedObjectsCodec.ResponseParameters;
 import com.hazelcast.client.spi.ClientContext;
 import com.hazelcast.client.spi.ClientProxy;
 import com.hazelcast.client.spi.impl.ClientInvocation;
+import com.hazelcast.client.spi.impl.ClientInvocationFuture;
 import com.hazelcast.client.spi.impl.ClientProxyFactoryWithContext;
 import com.hazelcast.core.Client;
 import com.hazelcast.core.DistributedObject;
@@ -34,14 +35,13 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.time.Duration;
 
 public final class MemberService implements ManagedService, RemoteService {
 
-  public static final String NAME = name("membership/service");
+  public static final String SERVICE_NAME = name("membership/service");
   private NodeEngine nodeEngine;
   private Properties properties;
 
@@ -111,7 +111,7 @@ public final class MemberService implements ManagedService, RemoteService {
 
     protected ClientMembershipProxy(String name,
         ClientContext context) {
-      super(NAME, name, context);
+      super(SERVICE_NAME, name, context);
       expired = Duration.of( Nodes.HEARTBEAT.getDurationAmount() * 3L, ChronoUnit.MILLIS);
     }
 
