@@ -189,7 +189,7 @@ public final class Configs {
                     return quorumConfig;
                 };
         public static final String MEMBER_ALIAS_ATTRIBUTE = "alias";
-        public static final Duration HEARTBEAT = new Duration(TimeUnit.MILLISECONDS, 2L);
+        public static final Duration HEARTBEAT = new Duration(TimeUnit.SECONDS, 2L);
         private static String DEFAULT_GROUP = named("cluster/group");
 
         private Nodes() {
