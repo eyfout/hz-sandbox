@@ -34,7 +34,7 @@ public final class Configs {
     private Configs() {
     }
 
-    static String name(String element) {
+    static String named(String element) {
         return "eyfout/" + element;
     }
 
@@ -67,7 +67,7 @@ public final class Configs {
 
     public static final class Topics {
 
-        public static final String MEMBER_INFO_REQUEST_TOPIC = name("member/info/request/topic");
+        public static final String MEMBER_INFO_REQUEST_TOPIC = named("member/info/request/topic");
         public static final Configuration<
                 String,
                 Function<Config, ReliableTopicConfig>,
@@ -79,7 +79,7 @@ public final class Configs {
                         it -> createTopic(it, MEMBER_INFO_REQUEST_TOPIC));
 
 
-        public static final String MEMBER_INFO_RESPONSE_TOPIC = name("member/info/response/topic");
+        public static final String MEMBER_INFO_RESPONSE_TOPIC = named("member/info/response/topic");
         public static final Configuration<
                 String,
                 Function<Config, ReliableTopicConfig>,
@@ -108,7 +108,7 @@ public final class Configs {
     }
 
     public static final class Maps {
-        static final String MEMBER_ALIAS_MAP = name("member/alias/map");
+        static final String MEMBER_ALIAS_MAP = named("member/alias/map");
         public static final Configuration<String, Function<Config, MapConfig>, ?> MEMBER_ALIAS =
                 new Configuration<>(
                         MEMBER_ALIAS_MAP,
@@ -117,7 +117,7 @@ public final class Configs {
                             it.addMapConfig(config);
                             return config;
                         });
-        public static final String MEMBER_ADDRESS_MAP = name("member/address/map");
+        public static final String MEMBER_ADDRESS_MAP = named("member/address/map");
         public static final Configuration<String, Function<Config, MapConfig>, ?> MEMBER_ADDRESS = new Configuration<>(
                 MEMBER_ADDRESS_MAP,
                 it -> {
@@ -177,10 +177,10 @@ public final class Configs {
     public static final class Nodes {
 
         public static final Supplier<QuorumConfig> TWO_MEMBER_QUORUM =
-                () -> new QuorumConfig(name("2/member/quorum"), true, 2);
+                () -> new QuorumConfig(named("2/member/quorum"), true, 2);
 
         public static final Supplier<QuorumConfig> THREE_MEMBER_QUORUM =
-                () -> new QuorumConfig(name("3/member/quorum"), true, 3);
+                () -> new QuorumConfig(named("3/member/quorum"), true, 3);
 
         public static final BiFunction<Config, Supplier<QuorumConfig>, QuorumConfig> QUORUM =
                 (config, quorum) -> {
@@ -190,7 +190,7 @@ public final class Configs {
                 };
         public static final String MEMBER_ALIAS_ATTRIBUTE = "alias";
         public static final Duration HEARTBEAT = new Duration(TimeUnit.MILLISECONDS, 2L);
-        private static String DEFAULT_GROUP = name("cluster/group");
+        private static String DEFAULT_GROUP = named("cluster/group");
 
         private Nodes() {
         }
@@ -213,7 +213,7 @@ public final class Configs {
     public static final class Caches {
         public static final Duration TWO_MILIS = new Duration(TimeUnit.MILLISECONDS, 2L);
         public static final Duration AUTO_POPULATE_EXPIRY = TWO_MILIS;
-        static final String MEMBER_ALIAS_CACHE = name("member/alias/cache");
+        static final String MEMBER_ALIAS_CACHE = named("member/alias/cache");
         public static final Configuration<String, Function<Config, CacheSimpleConfig>, ?> MEMBER_ALIAS =
                 new Configuration<>(
                         MEMBER_ALIAS_CACHE,
@@ -227,7 +227,7 @@ public final class Configs {
                             return config;
                         });
 
-        static final String AUTO_POPULATE_MEMBER_ALIAS_CACHE = name("auto-populate/member/alias/cache");
+        static final String AUTO_POPULATE_MEMBER_ALIAS_CACHE = named("auto-populate/member/alias/cache");
         public static final Configuration<String, Function<Config, CacheSimpleConfig>, ?>
                 AUTO_POPULATE_MEMBER_ALIAS =
                 new Configuration<>(

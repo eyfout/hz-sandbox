@@ -9,9 +9,8 @@ import com.hazelcast.logging.ILogger
 import com.hazelcast.quorum.QuorumException
 import com.hazelcast.spi.discovery.DiscoveryStrategy
 import com.hazelcast.spi.discovery.DiscoveryStrategyFactory
-import ht.eyfout.hz.configuration.MemberService
+import ht.eyfout.hz.configuration.Membership
 import spock.lang.Ignore
-import spock.lang.PendingFeature
 import spock.lang.Specification
 
 import java.util.function.Function
@@ -271,7 +270,7 @@ class ServiceSpecification extends HazelcastSpecs {
             it.setInstanceName(serverName)
             it.getMemberAttributeConfig().setStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE, serverName)
         })
-        MemberService.Membership membership = server.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
+        Membership membership = server.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
 
         expect: "${serverName} is a member"
         membership.members().contains(Member.server(serverName, server.localEndpoint.uuid))
@@ -295,7 +294,7 @@ class ServiceSpecification extends HazelcastSpecs {
         client.getMap(Maps.MEMBER_ADDRESS_MAP).put(client.getLocalEndpoint().socketAddress, clientName)
 
         and: 'request membership information about the cluster'
-        MemberService.Membership membership = client.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
+        Membership membership = client.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
         def members = membership.members()
 
         then:"only ${clientName} is reported"

@@ -1,16 +1,17 @@
 package ht.eyfout.hz.configuration;
 
-import static ht.eyfout.hz.configuration.Configs.name;
+import static ht.eyfout.hz.configuration.Configs.named;
 
 import com.google.common.base.Stopwatch;
 import com.hazelcast.client.spi.ClientContext;
 import com.hazelcast.client.spi.ClientProxy;
 import com.hazelcast.client.spi.impl.ClientProxyFactoryWithContext;
-import com.hazelcast.core.Client;
 import com.hazelcast.core.DistributedObject;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.IMap;
 import com.hazelcast.instance.HazelcastInstanceFactory;
+import com.hazelcast.logging.ILogger;
+import com.hazelcast.logging.Logger;
 import com.hazelcast.spi.AbstractDistributedObject;
 import com.hazelcast.spi.ManagedService;
 import com.hazelcast.spi.NodeEngine;
@@ -23,20 +24,19 @@ import java.net.SocketAddress;
 import java.time.temporal.ChronoUnit;
 import java.util.AbstractMap;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.function.Predicate;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.time.Duration;
 
 public final class MemberService implements ManagedService, RemoteService {
 
-  public static final String SERVICE_NAME = name("membership/service");
+  static final String SERVICE_NAME = named("membership/service");
   private NodeEngine nodeEngine;
   private Properties properties;
 
@@ -71,41 +71,21 @@ public final class MemberService implements ManagedService, RemoteService {
 
   enum Proxy {
     SOCKET;
-    public static final String PROPERTY = "membership.service.protocol";
-
-  }
-
-
-  public interface Membership {
-
-    Set<Member> members();
-
-    Set<Member> clients();
-
-    default Member named(final Predicate<Member> criterion) {
-      return members().stream().filter(criterion).findFirst()
-          .orElseGet(() -> clients().stream().filter(criterion).findFirst().get());
-    }
-
-    default Set<Member> all() {
-      Set<Member> result = new HashSet<>();
-      result.addAll(members());
-      result.addAll(clients());
-      return result;
-    }
+    public static final String PROPERTY = Configs.named("membership.service.protocol");
 
   }
 
   static final class ClientMembershipProxy extends ClientProxy implements Membership {
-
+    ILogger logger = Logger.getLogger(Membership.class);
     Set<Member> members = new HashSet<>();
-    Stopwatch expiry = Stopwatch.createUnstarted();
+    Stopwatch expiryStopWatch = Stopwatch.createUnstarted();
+    static final long WAIT_FACTOR = 3L;
     final Duration expiration;
 
     ClientMembershipProxy(String name,
                           ClientContext context) {
       super(SERVICE_NAME, name, context);
-      expiration = Duration.of( Nodes.HEARTBEAT.getDurationAmount() * 3L, ChronoUnit.MILLIS);
+      expiration = Duration.of( Nodes.HEARTBEAT.getDurationAmount() * WAIT_FACTOR, ChronoUnit.MILLIS);
     }
 
     @Override
@@ -115,7 +95,7 @@ public final class MemberService implements ManagedService, RemoteService {
 
     @Override
     public Set<Member> clients() {
-      if(members.isEmpty() || (expiry.isRunning() && expiry.elapsed().compareTo(expiration) >= 0 )) {
+      if(members.isEmpty() || (expiryStopWatch.isRunning() && expiryStopWatch.elapsed().compareTo(expiration) >= 0 )) {
         members = getFromRemoteMembershipSvc();
         resetClock();
       }
@@ -123,10 +103,10 @@ public final class MemberService implements ManagedService, RemoteService {
     }
 
     private void resetClock(){
-      if(expiry.isRunning()){
-        expiry.reset();
+      if(expiryStopWatch.isRunning()){
+        expiryStopWatch.reset();
       } else {
-        expiry.start();
+        expiryStopWatch.start();
       }
     }
 
@@ -144,11 +124,14 @@ public final class MemberService implements ManagedService, RemoteService {
                 });
 
         try {
-            return future.get();
-        } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
+            return future.get(Nodes.HEARTBEAT.getDurationAmount() * WAIT_FACTOR, Nodes.HEARTBEAT.getTimeUnit());
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            final StringBuilder builder = new StringBuilder();
+            members.forEach(it -> builder.append("   ").append(it).append("\n"));
+            logger.info("Unable to retrieve membership within set time period, using previously calculated membership");
+            logger.info(builder.toString());
+            return members;
         }
-        throw new IllegalStateException("No active members in cluster");
     }
 
     static final class Provider extends ClientProxyFactoryWithContext {
@@ -166,7 +149,7 @@ public final class MemberService implements ManagedService, RemoteService {
 
     private final String objectName;
 
-    public MembershipSocketProxy(String objectName, NodeEngine nodeEngine,
+    MembershipSocketProxy(String objectName, NodeEngine nodeEngine,
         MemberService memberService) {
       super(nodeEngine, memberService);
       this.objectName = objectName;
@@ -187,7 +170,7 @@ public final class MemberService implements ManagedService, RemoteService {
               it -> new AbstractMap.SimpleImmutableEntry<>(clientAddress.get(it.getSocketAddress()),
                   it.getUuid()))
           .filter(
-              it -> !Objects.isNull(it.getKey())) // without a name, they node may not have started
+              it -> !Objects.isNull(it.getKey())) // without a name, the node may not have fully initialized
           .map(it -> Member.client(it.getKey(), it.getValue()))
           .collect(Collectors.toSet());
 
