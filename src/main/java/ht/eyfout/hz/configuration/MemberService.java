@@ -63,12 +63,10 @@ public final class MemberService implements ManagedService, RemoteService {
 
   @Override
   public DistributedObject createDistributedObject(String objectName) {
-    switch (Proxy.valueOf(properties.getProperty(Proxy.PROPERTY))) {
-      case SOCKET:
-        return new MembershipSocketProxy(objectName, nodeEngine, this);
-      default:
-        throw new UnsupportedOperationException();
-    }
+      if (Proxy.valueOf(properties.getProperty(Proxy.PROPERTY)) == Proxy.SOCKET) {
+          return new MembershipSocketProxy(objectName, nodeEngine, this);
+      }
+      throw new UnsupportedOperationException();
   }
 
   @Override
@@ -90,7 +88,7 @@ public final class MemberService implements ManagedService, RemoteService {
     Set<Member> clients();
 
     default Member named(final Predicate<Member> criterion) {
-      return Optional.ofNullable(members().stream().filter(criterion).findFirst()).get()
+      return members().stream().filter(criterion).findFirst()
           .orElseGet(() -> clients().stream().filter(criterion).findFirst().get());
     }
 
@@ -109,8 +107,8 @@ public final class MemberService implements ManagedService, RemoteService {
     Stopwatch expiration = Stopwatch.createUnstarted();
     final Duration expired;
 
-    protected ClientMembershipProxy(String name,
-        ClientContext context) {
+    ClientMembershipProxy(String name,
+                          ClientContext context) {
       super(SERVICE_NAME, name, context);
       expired = Duration.of( Nodes.HEARTBEAT.getDurationAmount() * 3L, ChronoUnit.MILLIS);
     }
@@ -158,9 +156,7 @@ public final class MemberService implements ManagedService, RemoteService {
                 it.getUuid()))
             .map(it -> Member.client(it.getKey(), it.getValue()))
             .collect(Collectors.toSet());
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      } catch (ExecutionException e) {
+      } catch (InterruptedException | ExecutionException e) {
         e.printStackTrace();
       }
       return Collections.emptySet();

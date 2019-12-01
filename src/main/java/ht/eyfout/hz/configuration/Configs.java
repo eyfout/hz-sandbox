@@ -108,7 +108,7 @@ public final class Configs {
     }
 
     public static final class Maps {
-        static final String MEMBER_ALIAS_MAP = name("/member/alias/map");
+        static final String MEMBER_ALIAS_MAP = name("member/alias/map");
         public static final Configuration<String, Function<Config, MapConfig>, ?> MEMBER_ALIAS =
                 new Configuration<>(
                         MEMBER_ALIAS_MAP,
@@ -117,7 +117,7 @@ public final class Configs {
                             it.addMapConfig(config);
                             return config;
                         });
-        public static final String MEMBER_ADDRESS_MAP = name("/member/address/map");
+        public static final String MEMBER_ADDRESS_MAP = name("member/address/map");
         public static final Configuration<String, Function<Config, MapConfig>, ?> MEMBER_ADDRESS = new Configuration<>(
                 MEMBER_ADDRESS_MAP,
                 it -> {
@@ -195,14 +195,14 @@ public final class Configs {
         private Nodes() {
         }
 
-        public static final HazelcastInstance client(Consumer<ClientConfig> configurations) {
+        public static HazelcastInstance client(Consumer<ClientConfig> configurations) {
             ClientConfig config = new ClientConfig();
             config.getGroupConfig().setName(DEFAULT_GROUP);
             configurations.accept(config);
             return HazelcastClient.newHazelcastClient(config);
         }
 
-        public static final HazelcastInstance server(Consumer<Config> configurations) {
+        public static HazelcastInstance server(Consumer<Config> configurations) {
             Config config = new Config();
             config.getGroupConfig().setName(DEFAULT_GROUP);
             configurations.accept(config);
