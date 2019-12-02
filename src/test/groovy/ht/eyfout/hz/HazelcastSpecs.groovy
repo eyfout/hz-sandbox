@@ -271,18 +271,39 @@ class ServiceSpecification extends HazelcastSpecs {
             it.getMemberAttributeConfig().setStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE, serverName)
         })
 
+        expect: "${serverName} is a member"
+        with(server.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "") as Membership) {
+            members().contains(Member.server(serverName, server.localEndpoint.uuid))
+        }
+    }
+
+    def 'Shutting down master node switches deployed service master'() {
+        String server2Name = "server: ${UUID.randomUUID()}"
+
+        given:"$serverName with alias service deployed"
+        def server = Nodes.server({
+            Services.MEMBER_ALIAS.serverConfig().apply(it)
+            it.setInstanceName(serverName)
+            it.getMemberAttributeConfig().setStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE, serverName)
+        })
+        server.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
+
+        when: "$server2Name joins"
         def server2 = Nodes.server({
             Services.MEMBER_ALIAS.serverConfig().apply(it)
-            it.setInstanceName(serverName + "2" )
-            it.getMemberAttributeConfig().setStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE, serverName + "2")
+            it.setInstanceName(server2Name)
+            it.getMemberAttributeConfig().setStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE, server2Name)
         })
+        server2.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
 
-        Membership membership = server.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
-        Membership membership2 = server2.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
+        and:"master node ${serverName} is shutdown"
+        server.shutdown()
 
-        expect: "${serverName} is a member"
-        membership.members().contains(Member.server(serverName, server.localEndpoint.uuid))
-        membership2.members().contains(Member.server(serverName, server.localEndpoint.uuid))
+        then: "${server2Name} is a member"
+        with(server2.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "") as Membership){
+            members().size() == 1
+            members().contains(Member.server(server2Name, server2.localEndpoint.uuid))
+        }
     }
 
     def 'access membership service for client'() {
@@ -299,15 +320,13 @@ class ServiceSpecification extends HazelcastSpecs {
             Services.MEMBER_ALIAS.clientConfig().ifPresent({ c -> c.apply(it) })
             it.instanceName = clientName
         })
-
         client.getMap(Maps.MEMBER_ADDRESS_MAP).put(client.getLocalEndpoint().socketAddress, clientName)
 
-        and: 'request membership information about the cluster'
-        Membership membership = client.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
-        def members = membership.members()
-
         then:"only ${clientName} is reported"
-        members.size() == 1
-        members.contains(Member.client(clientName, client.localEndpoint.uuid))
+        with(client.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "") as Membership){
+            members().size() == 1
+            members().contains(Member.client(clientName, client.localEndpoint.uuid))
+        }
+
     }
 }

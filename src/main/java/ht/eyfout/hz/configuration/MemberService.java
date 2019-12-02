@@ -111,6 +111,7 @@ public final class MemberService implements ManagedService, RemoteService {
         }
 
         private Set<Member> getViaInvocation(){
+//            getContext().getInvocationService().invokeOnRandomTarget();
             ClientMessage message = ClientMessage.create();
             message.setOperationName("Membership.clients");
             ClientInvocationFuture invoke = new ClientInvocation(getClient(), message, getServiceName(), paritionId).invoke();
