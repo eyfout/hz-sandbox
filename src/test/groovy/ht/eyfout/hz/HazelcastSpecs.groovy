@@ -270,10 +270,19 @@ class ServiceSpecification extends HazelcastSpecs {
             it.setInstanceName(serverName)
             it.getMemberAttributeConfig().setStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE, serverName)
         })
+
+        def server2 = Nodes.server({
+            Services.MEMBER_ALIAS.serverConfig().apply(it)
+            it.setInstanceName(serverName + "2" )
+            it.getMemberAttributeConfig().setStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE, serverName + "2")
+        })
+
         Membership membership = server.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
+        Membership membership2 = server2.getDistributedObject(Services.MEMBER_ALIAS_SERVICE, "")
 
         expect: "${serverName} is a member"
         membership.members().contains(Member.server(serverName, server.localEndpoint.uuid))
+        membership2.members().contains(Member.server(serverName, server.localEndpoint.uuid))
     }
 
     def 'access membership service for client'() {

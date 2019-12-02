@@ -3,8 +3,11 @@ package ht.eyfout.hz.configuration;
 import static ht.eyfout.hz.configuration.Configs.named;
 
 import com.google.common.base.Stopwatch;
+import com.hazelcast.client.impl.protocol.ClientMessage;
 import com.hazelcast.client.spi.ClientContext;
 import com.hazelcast.client.spi.ClientProxy;
+import com.hazelcast.client.spi.impl.ClientInvocation;
+import com.hazelcast.client.spi.impl.ClientInvocationFuture;
 import com.hazelcast.client.spi.impl.ClientProxyFactoryWithContext;
 import com.hazelcast.core.DistributedObject;
 import com.hazelcast.core.HazelcastInstance;
@@ -12,15 +15,13 @@ import com.hazelcast.core.IMap;
 import com.hazelcast.instance.HazelcastInstanceFactory;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
-import com.hazelcast.spi.AbstractDistributedObject;
-import com.hazelcast.spi.ManagedService;
-import com.hazelcast.spi.NodeEngine;
-import com.hazelcast.spi.RemoteService;
+import com.hazelcast.spi.*;
 import ht.eyfout.hz.Member;
 import ht.eyfout.hz.configuration.Configs.Maps;
 import ht.eyfout.hz.configuration.Configs.Nodes;
 import ht.eyfout.hz.configuration.Configs.Services;
 
+import java.io.IOException;
 import java.net.SocketAddress;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -77,11 +78,13 @@ public final class MemberService implements ManagedService, RemoteService {
         Stopwatch expiry = Stopwatch.createUnstarted();
         static final long WAIT_FACTOR = 3L;
         final Duration expiration;
+        final int paritionId;
 
         ClientMembershipProxy(String name,
                               ClientContext context) {
             super(SERVICE_NAME, name, context);
             expiration = Duration.of(Nodes.HEARTBEAT.getDurationAmount() * WAIT_FACTOR, ChronoUnit.SECONDS);
+            paritionId = getContext().getPartitionService().getPartitionId(name);
         }
 
         @Override
@@ -92,6 +95,7 @@ public final class MemberService implements ManagedService, RemoteService {
         @Override
         public Set<Member> clients() {
             if (members.isEmpty() || (expiry.isRunning() && expiry.elapsed().compareTo(expiration) >= 0)) {
+
                 members = getFromRemoteMembershipSvc();
                 resetClock();
             }
@@ -104,6 +108,18 @@ public final class MemberService implements ManagedService, RemoteService {
             } else {
                 expiry.start();
             }
+        }
+
+        private Set<Member> getViaInvocation(){
+            ClientMessage message = ClientMessage.create();
+            message.setOperationName("Membership.clients");
+            ClientInvocationFuture invoke = new ClientInvocation(getClient(), message, getServiceName(), paritionId).invoke();
+            try {
+                ClientMessage clientMessage = invoke.get();
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+            return Collections.emptySet();
         }
 
         private Set<Member> getFromRemoteMembershipSvc() {
@@ -141,41 +157,14 @@ public final class MemberService implements ManagedService, RemoteService {
 
     static final class MembershipSocketProxy extends
             AbstractDistributedObject<MemberService> implements Membership {
-
         private final String objectName;
+        final int partitionId;
 
         MembershipSocketProxy(String objectName, NodeEngine nodeEngine,
                               MemberService memberService) {
             super(nodeEngine, memberService);
             this.objectName = objectName;
-        }
-
-        static Set<Member> servers(Collection<com.hazelcast.core.Member> members) {
-            return members
-                    .stream().map(it -> new AbstractMap.SimpleImmutableEntry<>(
-                            it.getStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE), it.getUuid()))
-                    .map(it -> Member.server(it.getKey(), it.getValue()))
-                    .collect(Collectors.toSet());
-        }
-
-        static Set<Member> getClients(HazelcastInstance hzInstance) {
-            final IMap<SocketAddress, String> clientAddress = hzInstance.getMap(Maps.MEMBER_ADDRESS_MAP);
-            Map<Boolean, List<Map.Entry<String, String>>> collect = hzInstance.getClientService().getConnectedClients()
-                    .stream().map(
-                            it -> new AbstractMap.SimpleImmutableEntry<>(clientAddress.get(it.getSocketAddress()),
-                                    it.getUuid()))
-                    .collect(Collectors.groupingBy(it -> Objects.isNull(it.getKey())));
-
-            if (!collect.getOrDefault(Boolean.TRUE, Collections.emptyList()).isEmpty()) {
-                Member self = Member.server(hzInstance.getCluster().getLocalMember().getStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE),
-                        hzInstance.getCluster().getLocalMember().getUuid());
-                hzInstance.getReliableTopic(Configs.Topics.MEMBER_INFO_REQUEST_TOPIC).publish(self);
-            }
-
-            return collect.getOrDefault(Boolean.FALSE, Collections.emptyList()).stream()
-                    .map(it -> Member.client(it.getKey(), it.getValue()))
-                    .collect(Collectors.toSet());
-
+            partitionId = getNodeEngine().getPartitionService().getPartitionId(this.objectName);
         }
 
         @Override
@@ -190,12 +179,61 @@ public final class MemberService implements ManagedService, RemoteService {
 
         @Override
         public Set<Member> members() {
-            return servers(getNodeEngine().getHazelcastInstance().getCluster().getMembers());
+            return executeOp(new MembersGETOperation());
+        }
+
+        private Set<Member> executeOp(Operation operation) {
+            InvocationBuilder builder = getNodeEngine().getOperationService()
+                    .createInvocationBuilder(getServiceName(), operation, partitionId);
+            try {
+                return builder.<Set<Member>>invoke().get();
+            } catch (InterruptedException | ExecutionException e) {
+                e.printStackTrace();
+            }
+            throw new IllegalStateException("");
         }
 
         @Override
         public Set<Member> clients() {
-            return getClients(getNodeEngine().getHazelcastInstance());
+            final IMap<SocketAddress, String> clientAddress = getNodeEngine().getHazelcastInstance().getMap(Maps.MEMBER_ADDRESS_MAP);
+            return executeOp(new ClientsGETOperation(new HashMap<>(clientAddress)));
+        }
+    }
+
+    static class ClientsGETOperation extends Operation implements PartitionAwareOperation {
+        private final Map<SocketAddress, String> clientAddress;
+
+        ClientsGETOperation(Map<SocketAddress, String> alias) {
+            this.clientAddress = alias;
+        }
+
+        @Override
+        public Object getResponse() {
+            HazelcastInstance hzInstance = getNodeEngine().getHazelcastInstance();
+            Map<Boolean, List<Map.Entry<String, String>>> collect = hzInstance.getClientService().getConnectedClients()
+                    .stream().map(
+                            it -> new AbstractMap.SimpleImmutableEntry<>(clientAddress.get(it.getSocketAddress()),
+                                    it.getUuid()))
+                    .collect(Collectors.groupingBy(it -> Objects.isNull(it.getKey())));
+
+            return collect.getOrDefault(Boolean.FALSE, Collections.emptyList()).stream()
+                    .map(it -> Member.client(it.getKey(), it.getValue()))
+                    .collect(Collectors.toSet());
+        }
+    }
+
+    static class MembersGETOperation extends Operation implements PartitionAwareOperation {
+        MembersGETOperation() {
+        }
+
+        @Override
+        public Object getResponse() {
+            Set<com.hazelcast.core.Member> members = getNodeEngine().getHazelcastInstance().getCluster().getMembers();
+            return members
+                    .stream().map(it -> new AbstractMap.SimpleImmutableEntry<>(
+                            it.getStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE), it.getUuid()))
+                    .map(it -> Member.server(it.getKey(), it.getValue()))
+                    .collect(Collectors.toSet());
         }
     }
 }
