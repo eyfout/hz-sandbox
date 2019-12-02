@@ -74,7 +74,7 @@ public final class MemberService implements ManagedService, RemoteService {
     static final class ClientMembershipProxy extends ClientProxy implements Membership {
         ILogger logger = Logger.getLogger(Membership.class);
         Set<Member> members = new HashSet<>();
-        Stopwatch expiryStopWatch = Stopwatch.createUnstarted();
+        Stopwatch expiry = Stopwatch.createUnstarted();
         static final long WAIT_FACTOR = 3L;
         final Duration expiration;
 
@@ -91,7 +91,7 @@ public final class MemberService implements ManagedService, RemoteService {
 
         @Override
         public Set<Member> clients() {
-            if (members.isEmpty() || (expiryStopWatch.isRunning() && expiryStopWatch.elapsed().compareTo(expiration) >= 0)) {
+            if (members.isEmpty() || (expiry.isRunning() && expiry.elapsed().compareTo(expiration) >= 0)) {
                 members = getFromRemoteMembershipSvc();
                 resetClock();
             }
@@ -99,10 +99,10 @@ public final class MemberService implements ManagedService, RemoteService {
         }
 
         private void resetClock() {
-            if (expiryStopWatch.isRunning()) {
-                expiryStopWatch.reset();
+            if (expiry.isRunning()) {
+                expiry.reset();
             } else {
-                expiryStopWatch.start();
+                expiry.start();
             }
         }
 
@@ -167,7 +167,9 @@ public final class MemberService implements ManagedService, RemoteService {
                     .collect(Collectors.groupingBy(it -> Objects.isNull(it.getKey())));
 
             if (!collect.getOrDefault(Boolean.TRUE, Collections.emptyList()).isEmpty()) {
-                hzInstance.getReliableTopic(Configs.Topics.MEMBER_INFO_REQUEST_TOPIC).publish("");
+                Member self = Member.server(hzInstance.getCluster().getLocalMember().getStringAttribute(Nodes.MEMBER_ALIAS_ATTRIBUTE),
+                        hzInstance.getCluster().getLocalMember().getUuid());
+                hzInstance.getReliableTopic(Configs.Topics.MEMBER_INFO_REQUEST_TOPIC).publish(self);
             }
 
             return collect.getOrDefault(Boolean.FALSE, Collections.emptyList()).stream()
