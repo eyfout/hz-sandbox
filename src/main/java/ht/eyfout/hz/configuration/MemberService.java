@@ -1,13 +1,8 @@
 package ht.eyfout.hz.configuration;
 
-import static ht.eyfout.hz.configuration.Configs.named;
-
 import com.google.common.base.Stopwatch;
-import com.hazelcast.client.impl.protocol.ClientMessage;
 import com.hazelcast.client.spi.ClientContext;
 import com.hazelcast.client.spi.ClientProxy;
-import com.hazelcast.client.spi.impl.ClientInvocation;
-import com.hazelcast.client.spi.impl.ClientInvocationFuture;
 import com.hazelcast.client.spi.impl.ClientProxyFactoryWithContext;
 import com.hazelcast.core.DistributedObject;
 import com.hazelcast.core.HazelcastInstance;
@@ -15,21 +10,37 @@ import com.hazelcast.core.IMap;
 import com.hazelcast.instance.HazelcastInstanceFactory;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.logging.Logger;
-import com.hazelcast.spi.*;
+import com.hazelcast.spi.AbstractDistributedObject;
+import com.hazelcast.spi.InvocationBuilder;
+import com.hazelcast.spi.ManagedService;
+import com.hazelcast.spi.NodeEngine;
+import com.hazelcast.spi.Operation;
+import com.hazelcast.spi.PartitionAwareOperation;
+import com.hazelcast.spi.RemoteService;
+import com.hazelcast.util.ExceptionUtil;
 import ht.eyfout.hz.Member;
 import ht.eyfout.hz.configuration.Configs.Maps;
 import ht.eyfout.hz.configuration.Configs.Nodes;
 import ht.eyfout.hz.configuration.Configs.Services;
 
-import java.io.IOException;
 import java.net.SocketAddress;
+import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
-import java.time.Duration;
+
+import static ht.eyfout.hz.configuration.Configs.named;
 
 public final class MemberService implements ManagedService, RemoteService {
 
@@ -73,18 +84,18 @@ public final class MemberService implements ManagedService, RemoteService {
     }
 
     static final class ClientMembershipProxy extends ClientProxy implements Membership {
+        static final long WAIT_FACTOR = 3L;
+        final Duration expiration;
+        final int partitionId;
         ILogger logger = Logger.getLogger(Membership.class);
         Set<Member> members = new HashSet<>();
         Stopwatch expiry = Stopwatch.createUnstarted();
-        static final long WAIT_FACTOR = 3L;
-        final Duration expiration;
-        final int paritionId;
 
         ClientMembershipProxy(String name,
                               ClientContext context) {
             super(SERVICE_NAME, name, context);
             expiration = Duration.of(Nodes.HEARTBEAT.getDurationAmount() * WAIT_FACTOR, ChronoUnit.SECONDS);
-            paritionId = getContext().getPartitionService().getPartitionId(name);
+            partitionId = getContext().getPartitionService().getPartitionId(name);
         }
 
         @Override
@@ -95,7 +106,6 @@ public final class MemberService implements ManagedService, RemoteService {
         @Override
         public Set<Member> clients() {
             if (members.isEmpty() || (expiry.isRunning() && expiry.elapsed().compareTo(expiration) >= 0)) {
-
                 members = getFromRemoteMembershipSvc();
                 resetClock();
             }
@@ -110,22 +120,8 @@ public final class MemberService implements ManagedService, RemoteService {
             }
         }
 
-        private Set<Member> getViaInvocation(){
-//            getContext().getInvocationService().invokeOnRandomTarget();
-            ClientMessage message = ClientMessage.create();
-            message.setOperationName("Membership.clients");
-            ClientInvocationFuture invoke = new ClientInvocation(getClient(), message, getServiceName(), paritionId).invoke();
-            try {
-                ClientMessage clientMessage = invoke.get();
-            } catch (InterruptedException | ExecutionException e) {
-                e.printStackTrace();
-            }
-            return Collections.emptySet();
-        }
-
         private Set<Member> getFromRemoteMembershipSvc() {
             final String groupName = getClient().getConfig().getGroupConfig().getName();
-
             final Future<Set<Member>> future = getContext().getExecutionService()
                     .getUserExecutor().submit(() -> {
                         final Set<Member> result = new HashSet<>();
@@ -138,13 +134,15 @@ public final class MemberService implements ManagedService, RemoteService {
 
             try {
                 return future.get(Nodes.HEARTBEAT.getDurationAmount() * WAIT_FACTOR, Nodes.HEARTBEAT.getTimeUnit());
-            } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            } catch (InterruptedException | ExecutionException e) {
+                ExceptionUtil.rethrow(e);
+            } catch (TimeoutException e) {
                 final StringBuilder builder = new StringBuilder();
                 members.forEach(it -> builder.append("   ").append(it).append("\n"));
                 logger.warning("Unable to retrieve membership within set time period, using previously calculated membership", e);
                 logger.info(builder.toString());
-                return members;
             }
+            return members;
         }
 
         static final class Provider extends ClientProxyFactoryWithContext {
@@ -155,11 +153,10 @@ public final class MemberService implements ManagedService, RemoteService {
         }
     }
 
-
     static final class MembershipSocketProxy extends
             AbstractDistributedObject<MemberService> implements Membership {
-        private final String objectName;
         final int partitionId;
+        private final String objectName;
 
         MembershipSocketProxy(String objectName, NodeEngine nodeEngine,
                               MemberService memberService) {

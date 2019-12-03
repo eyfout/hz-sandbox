@@ -327,6 +327,5 @@ class ServiceSpecification extends HazelcastSpecs {
             members().size() == 1
             members().contains(Member.client(clientName, client.localEndpoint.uuid))
         }
-
     }
 }
